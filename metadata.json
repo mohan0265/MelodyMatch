@@ -1,0 +1,7 @@
+{
+  "name": "MelodyMatch: Guess the Song",
+  "description": "A professional host-controlled music quiz application for Windows and Android. Import songs, create clips, and manage team scores in an offline environment.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
