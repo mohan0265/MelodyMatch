@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Library,
@@ -141,7 +140,7 @@ const MainMenuButton: React.FC<{
   >
     <div className="flex items-center gap-4">
       <div className={`p-2 rounded-lg ${active ? 'bg-white/20' : 'bg-slate-200 dark:bg-black/20 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/30'} transition-colors`}>
-        {React.cloneElement(icon as React.ReactElement, { size: 20, className: active ? 'text-white' : 'text-slate-500 dark:text-slate-400 group-hover:text-indigo-500' })}
+        {React.cloneElement(icon as React.ReactElement<any>, { size: 20, className: active ? 'text-white' : 'text-slate-500 dark:text-slate-400 group-hover:text-indigo-500' })}
       </div>
       <div>
         <h3 className="font-brand text-lg uppercase leading-none tracking-wide">{label}</h3>
