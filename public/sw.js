@@ -1,9 +1,10 @@
 
-const CACHE_NAME = 'melody-match-offline-v3';
+const CACHE_NAME = 'melody-match-offline-v5';
 const CORE_ASSETS = [
   '/',
   '/index.html',
-  '/manifest.json'
+  '/manifest.json',
+  'https://cdn-icons-png.flaticon.com/512/461/461238.png'
 ];
 
 // 1. Install Phase: Cache the "skeleton" of the app immediately
@@ -28,44 +29,62 @@ self.addEventListener('activate', (event) => {
   self.clients.claim(); // Take control of all clients immediately
 });
 
-// 3. Fetch Phase: The "Offline Magic"
+// 3. Fetch Phase: The "Smart Offline" Strategy
 self.addEventListener('fetch', (event) => {
-  // Ignore API calls or non-GET requests (though this app has no API calls)
+  // Ignore API calls or non-GET requests
   if (event.request.method !== 'GET') return;
 
+  // STRATEGY A: HTML/Navigation (Network First, Fallback to Cache)
+  // This ensures the user always sees the *latest* version of the app shell (index.html)
+  // if they have an internet connection.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          return caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, networkResponse.clone());
+            return networkResponse;
+          });
+        })
+        .catch(() => {
+          // If offline, return the cached index.html
+          return caches.match('/index.html');
+        })
+    );
+    return;
+  }
+
+  // STRATEGY B: Assets (JS, CSS, Images) (Cache First, Fallback to Network)
+  // These files usually have hash names (e.g., main.a1b2c.js), so if the name changes,
+  // it's a new file anyway. We want these to load instantly.
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      // A. If found in cache, return it (Offline Mode)
+      // 1. Return cached file if found
       if (cachedResponse) {
         return cachedResponse;
       }
 
-      // B. If not in cache, fetch from internet
+      // 2. Else fetch from network
       return fetch(event.request)
         .then((networkResponse) => {
-          // Check if valid response
           if (!networkResponse || (networkResponse.status !== 200 && networkResponse.status !== 0)) {
             return networkResponse;
           }
 
-          // C. CLONE and SAVE to cache for next time
+          // 3. Cache the new file
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
             try {
               cache.put(event.request, responseToCache);
             } catch (err) {
-              // Quota exceeded or other error, safe to ignore
+              // Ignore quota errors
             }
           });
 
           return networkResponse;
         })
         .catch(() => {
-          // D. Network failed (Offline) and not in cache?
-          // For a SPA, we usually return index.html for navigation requests
-          if (event.request.mode === 'navigate') {
-            return caches.match('/index.html');
-          }
+           // Fallback for offline images (optional)
         });
     })
   );
