@@ -56,7 +56,9 @@ import {
   Gamepad2,
   X,
   FastForward,
-  PlayCircle
+  PlayCircle,
+  Eye,
+  ListMusic
 } from 'lucide-react';
 
 import { GameResult, GameSet, GameSetSong, GameState, Song, Team, Platform } from './types';
@@ -160,6 +162,7 @@ const App: React.FC = () => {
 
   const [playingSongId, setPlayingSongId] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [currentSegment, setCurrentSegment] = useState<string | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const stopTimerRef = useRef<number | null>(null);
@@ -212,7 +215,11 @@ const App: React.FC = () => {
     if (!a) return;
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
-    const handleEnded = () => { setIsPlaying(false); setPlayingSongId(null); };
+    const handleEnded = () => { 
+      setIsPlaying(false); 
+      setPlayingSongId(null); 
+      setCurrentSegment(null);
+    };
     a.addEventListener('play', handlePlay);
     a.addEventListener('pause', handlePause);
     a.addEventListener('ended', handleEnded);
@@ -232,19 +239,56 @@ const App: React.FC = () => {
     if (audioRef.current) audioRef.current.pause();
   };
 
-  const playRange = async (songId: string, start: number, end: number) => {
+  const toggleSegment = async (songId: string, segmentLabel: string, start: number, end: number) => {
     const a = audioRef.current;
     if (!a) return;
-    stopAudio();
-    const url = await platformBridge.getAudioUrl(songId);
-    if (!url) { alert('Audio file missing.'); return; }
+
+    // Case 1: Same song, same segment
+    if (playingSongId === songId && currentSegment === segmentLabel) {
+      if (!a.paused) {
+        // Pause logic
+        if (stopTimerRef.current) { window.clearTimeout(stopTimerRef.current); stopTimerRef.current = null; }
+        a.pause();
+      } else {
+        // Resume logic
+        const remaining = Math.max(0, (end - a.currentTime) * 1000);
+        if (remaining > 0) {
+          try {
+            await a.play();
+            stopTimerRef.current = window.setTimeout(() => { a.pause(); }, remaining);
+          } catch (e) { console.error('Resume error', e); }
+        } else {
+          // If finished, restart segment
+           playRange(songId, segmentLabel, start, end);
+        }
+      }
+      return;
+    }
+
+    // Case 2: New song or New segment -> Start fresh
+    playRange(songId, segmentLabel, start, end);
+  };
+
+  const playRange = async (songId: string, segmentLabel: string, start: number, end: number) => {
+    const a = audioRef.current;
+    if (!a) return;
+    stopAudio(); // Clears any existing timers/pauses
+    
+    // Check if we need to load a new URL or if the current one is valid
+    if (playingSongId !== songId) {
+       const url = await platformBridge.getAudioUrl(songId);
+       if (!url) { alert('Audio file missing.'); return; }
+       a.src = url;
+    }
+
     setPlayingSongId(songId);
-    a.src = url;
+    setCurrentSegment(segmentLabel);
+    
     try {
       a.currentTime = Math.max(0, start);
       await a.play();
       const ms = Math.round((end - start) * 1000);
-      stopTimerRef.current = window.setTimeout(() => { a.pause(); stopTimerRef.current = null; }, ms);
+      stopTimerRef.current = window.setTimeout(() => { a.pause(); }, ms);
     } catch (e) { console.error('Playback error', e); }
   };
 
@@ -340,10 +384,11 @@ const App: React.FC = () => {
     setActiveSet(set); setGameState({ id: crypto.randomUUID(), setId: set.id, teams, currentSongIndex: 0, currentTurnTeamIndex: 0, isRevealed: false, stealAttempted: false, isFinished: false, shuffledIndices: indices }); setStealMode(false); setScoredThisSong(false); setView('game');
   };
 
-  const award = (teamId: string, pts: number) => { if (!gameState) return; setGameState({ ...gameState, teams: gameState.teams.map(t => t.id === teamId ? { ...t, score: t.score + pts } : t), isRevealed: true, stealAttempted: true }); setScoredThisSong(true); setStealMode(false); };
+  const award = (teamId: string, pts: number) => { if (!gameState) return; setGameState({ ...gameState, teams: gameState.teams.map(t => t.id === teamId ? { ...t, score: t.score + pts } : t), isRevealed: false, stealAttempted: true }); setScoredThisSong(true); setStealMode(false); };
 
   const nextSong = () => {
     if (!gameState || !activeSet) return; const isLast = gameState.currentSongIndex >= activeSet.songs.length - 1;
+    stopAudio(); // Ensure audio stops between tracks
     if (isLast) { const result: GameResult = { id: crypto.randomUUID(), dateTime: Date.now(), setName: activeSet.name, teams: gameState.teams }; persistence.saveHistory(result); setHistory(prev => [result, ...prev]); setView('history'); setGameState(null); } 
     else { setGameState({ ...gameState, currentSongIndex: gameState.currentSongIndex + 1, currentTurnTeamIndex: (gameState.currentTurnTeamIndex + 1) % gameState.teams.length, isRevealed: false, stealAttempted: false }); setStealMode(false); setScoredThisSong(false); }
   };
@@ -477,18 +522,54 @@ const App: React.FC = () => {
         )}
 
         {/* GAME VIEW - NO CONTAINERS (PURE OVERLAY) */}
-        {view === 'game' && gameState && (
+        {view === 'game' && gameState && activeSet && (
           <div className="absolute inset-0 z-50 flex flex-col items-center justify-center overflow-hidden">
             
             {/* Top Right Quit */}
-            <button onClick={() => { if(confirm("End game?")) { setGameState(null); setView('home'); }}} className="absolute top-6 right-6 z-50 p-4 bg-black/20 hover:bg-rose-600/80 backdrop-blur-md rounded-full text-white/50 hover:text-white transition-all group">
+            <button onClick={() => { if(confirm("End game?")) { setGameState(null); setView('home'); }}} className="absolute top-6 left-6 z-50 p-4 bg-black/20 hover:bg-rose-600/80 backdrop-blur-md rounded-full text-white/50 hover:text-white transition-all group">
                <X size={24} />
-               <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-black/80 text-white text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">QUIT</span>
+               <span className="absolute left-full ml-3 top-1/2 -translate-y-1/2 bg-black/80 text-white text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">QUIT</span>
             </button>
 
             {/* Top Scoreboard (Floating) */}
-            <div className="absolute top-12 z-40 scale-110">
+            <div className="absolute top-12 z-[40] scale-110">
                <Scoreboard teams={gameState.teams} currentTurnIndex={gameState.currentTurnTeamIndex} />
+            </div>
+
+            {/* Right Side Game Playlist Panel */}
+            <div className="absolute top-24 bottom-32 right-6 w-64 z-[35] flex flex-col gap-2">
+               <div className="bg-black/40 backdrop-blur-md rounded-2xl p-4 border border-white/5 flex items-center gap-2">
+                  <ListMusic size={16} className="text-indigo-400" />
+                  <span className="text-xs font-bold uppercase tracking-widest text-white/80">Playlist</span>
+                  <span className="ml-auto text-[10px] bg-white/10 px-2 py-0.5 rounded-full text-white/60">{gameState.currentSongIndex + 1}/{activeSet.songs.length}</span>
+               </div>
+               <div className="flex-grow overflow-y-auto no-scrollbar space-y-2 pb-4">
+                  {activeSet.songs.map((_, idx) => {
+                     const isCurrent = idx === gameState.currentSongIndex;
+                     const isPast = idx < gameState.currentSongIndex;
+                     const isFuture = idx > gameState.currentSongIndex;
+                     
+                     // Get song details if past/revealed
+                     const songData = songs.find(s => s.id === activeSet.songs[gameState.shuffledIndices[idx]].songId);
+                     
+                     return (
+                        <div key={idx} className={`p-3 rounded-xl border flex items-center gap-3 transition-all ${isCurrent ? 'bg-indigo-600/80 border-indigo-400/50 shadow-lg scale-105 ml-[-10px]' : isPast ? 'bg-black/20 border-white/5 text-slate-400' : 'bg-transparent border-transparent opacity-50'}`}>
+                           <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${isCurrent ? 'bg-white text-indigo-600' : 'bg-white/10 text-white'}`}>
+                              {idx + 1}
+                           </div>
+                           <div className="truncate">
+                              {isCurrent ? (
+                                 <div className="text-xs font-bold text-white uppercase tracking-wider animate-pulse">Playing Now...</div>
+                              ) : isPast ? (
+                                 <div className="text-xs font-bold text-white/90 truncate">{songData?.title || 'Unknown Track'}</div>
+                              ) : (
+                                 <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Locked</div>
+                              )}
+                           </div>
+                        </div>
+                     )
+                  })}
+               </div>
             </div>
 
             {/* Center Vinyl (Massive) */}
@@ -514,22 +595,25 @@ const App: React.FC = () => {
                </div>
             </div>
 
-            {/* Bottom Controls (Floating Island) */}
-            <div className="absolute bottom-10 z-50">
+            {/* Bottom Controls (Floating Island) - Highest Z-Index to stay clickable */}
+            <div className="absolute bottom-10 z-[70]">
                <div className="flex items-center gap-2 p-2 rounded-full bg-black/60 dark:bg-slate-900/80 backdrop-blur-2xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
                   
                   {/* Audio Regions */}
                   <div className="flex gap-1 pr-4 border-r border-white/10">
                      {[
-                       { l: 'INT', i: Play, c: 'bg-emerald-500 text-white', fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) playRange(s.songId, s.introStart||0, s.introEnd||5); } },
-                       { l: 'MAIN', i: Zap, c: 'bg-indigo-500 text-white', fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) playRange(s.songId, s.clipStart, s.clipEnd); } },
-                       { l: 'HINT', i: Sparkles, c: 'bg-amber-500 text-white', fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) playRange(s.songId, s.hintStart, s.hintEnd); } },
-                       { l: 'BONUS', i: Star, c: 'bg-fuchsia-500 text-white', fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) playRange(s.songId, s.bonusStart||10, s.bonusEnd||15); } },
-                     ].map(b => (
-                       <button key={b.l} onClick={b.fn} className={`w-12 h-12 rounded-full flex items-center justify-center hover:scale-110 transition-transform ${b.c}`} title={b.l}>
-                          <b.i size={18} fill="currentColor"/>
-                       </button>
-                     ))}
+                       { l: 'INT', i: Play, c: 'bg-emerald-500 text-white', fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) toggleSegment(s.songId, 'intro', s.introStart||0, s.introEnd||5); } },
+                       { l: 'MAIN', i: Zap, c: 'bg-indigo-500 text-white', fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) toggleSegment(s.songId, 'main', s.clipStart, s.clipEnd); } },
+                       { l: 'HINT', i: Sparkles, c: 'bg-amber-500 text-white', fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) toggleSegment(s.songId, 'hint', s.hintStart, s.hintEnd); } },
+                       { l: 'BONUS', i: Star, c: 'bg-fuchsia-500 text-white', fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) toggleSegment(s.songId, 'bonus', s.bonusStart||10, s.bonusEnd||15); } },
+                     ].map((b, idx) => {
+                       const isActive = currentSegment === ['intro','main','hint','bonus'][idx]; // Simplified match for demo
+                       return (
+                         <button key={b.l} onClick={b.fn} className={`w-12 h-12 rounded-full flex items-center justify-center hover:scale-110 transition-all ${b.c} ${isActive && isPlaying ? 'ring-4 ring-white/30 animate-pulse' : ''}`} title={b.l}>
+                            {isActive && isPlaying ? <Pause size={18} fill="currentColor"/> : <b.i size={18} fill="currentColor"/>}
+                         </button>
+                       )
+                     })}
                   </div>
 
                   {/* Host Actions */}
@@ -541,7 +625,9 @@ const App: React.FC = () => {
                      {!gameState.isRevealed ? (
                        <>
                          <button onClick={() => setStealMode(true)} className="px-6 h-12 bg-rose-600 hover:bg-rose-500 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg hover:-translate-y-0.5 transition-all">Wrong</button>
-                         <button onClick={() => setGameState({...gameState, isRevealed: true})} className="w-12 h-12 bg-slate-700 hover:bg-slate-600 text-white rounded-full flex items-center justify-center transition-colors"><FastForward size={20} /></button>
+                         <button onClick={() => setGameState({...gameState, isRevealed: true})} className="px-6 h-12 bg-slate-700 hover:bg-slate-600 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2">
+                            <Eye size={18} /> Reveal Identity
+                         </button>
                        </>
                      ) : (
                        <button onClick={nextSong} className="px-6 h-12 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg flex items-center gap-2 hover:-translate-y-0.5 transition-all">Next <SkipForward size={18} /></button>
@@ -550,11 +636,12 @@ const App: React.FC = () => {
                </div>
             </div>
 
-            {/* Overlay Modals (Steal) */}
+            {/* Overlay Modals (Steal) - Z-Index 60 to sit BEHIND controls (Z-70) but above Vinyl (Z-10) */}
             {stealMode && !scoredThisSong && (
-                <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-md flex items-center justify-center animate-in fade-in duration-200">
-                   <div className="text-center space-y-8">
+                <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-md flex items-center justify-center animate-in fade-in duration-200 pointer-events-none">
+                   <div className="text-center space-y-8 pointer-events-auto pb-32">
                       <h3 className="text-6xl font-brand text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-orange-500 animate-pulse drop-shadow-2xl">STEAL CHANCE</h3>
+                      <p className="text-slate-400 uppercase tracking-widest text-xs">Controls are still active for replay</p>
                       <div className="flex gap-6 justify-center">
                          {gameState.teams.map((t, i) => i !== gameState.currentTurnTeamIndex ? (
                            <button key={t.id} onClick={() => award(t.id, 1)} className="px-12 py-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[2.5rem] font-brand text-3xl shadow-2xl hover:scale-105 transition-transform border-4 border-indigo-400/20">{t.name} +1</button>
