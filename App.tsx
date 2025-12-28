@@ -59,7 +59,8 @@ import {
   PlayCircle,
   Eye,
   ListMusic,
-  RotateCcw
+  RotateCcw,
+  Repeat
 } from 'lucide-react';
 
 import { GameResult, GameSet, GameSetSong, GameState, Song, Team, Platform } from './types';
@@ -393,6 +394,21 @@ const App: React.FC = () => {
     setView('game');
   };
 
+  const handleReplay = (setId?: string) => {
+    if (!setId) return;
+    const set = sets.find(s => s.id === setId);
+    if (!set) {
+       alert("The original Game Set for this result seems to have been deleted.");
+       return;
+    }
+    const countStr = prompt(`Replay "${set.name}"? Enter number of teams:`, "2");
+    if (!countStr) return;
+    const count = parseInt(countStr);
+    if (!isNaN(count) && count > 0) {
+       startGame(set, count);
+    }
+  };
+
   // Undo System Helper
   const pushToHistory = () => {
     if (!gameState) return;
@@ -424,12 +440,32 @@ const App: React.FC = () => {
     setStealMode(false); 
   };
 
+  const handleStealFailed = () => {
+      pushToHistory();
+      if (gameState) setGameState({ ...gameState, stealAttempted: true });
+      setScoredThisSong(true); // Prevents modal from showing again
+      setStealMode(false);     // Closes modal
+      // No score change
+  };
+
   const nextSong = () => {
     if (!gameState || !activeSet) return; 
     pushToHistory(); // Save state before change
     const isLast = gameState.currentSongIndex >= activeSet.songs.length - 1;
     stopAudio(); // Ensure audio stops between tracks
-    if (isLast) { const result: GameResult = { id: crypto.randomUUID(), dateTime: Date.now(), setName: activeSet.name, teams: gameState.teams }; persistence.saveHistory(result); setHistory(prev => [result, ...prev]); setView('history'); setGameState(null); } 
+    if (isLast) { 
+        const result: GameResult = { 
+            id: crypto.randomUUID(), 
+            dateTime: Date.now(), 
+            setId: activeSet.id,
+            setName: activeSet.name, 
+            teams: gameState.teams 
+        }; 
+        persistence.saveHistory(result); 
+        setHistory(prev => [result, ...prev]); 
+        setView('history'); 
+        setGameState(null); 
+    } 
     else { setGameState({ ...gameState, currentSongIndex: gameState.currentSongIndex + 1, currentTurnTeamIndex: (gameState.currentTurnTeamIndex + 1) % gameState.teams.length, isRevealed: false, stealAttempted: false }); setStealMode(false); setScoredThisSong(false); }
   };
 
@@ -699,15 +735,29 @@ const App: React.FC = () => {
             {/* Overlay Modals (Steal) - Z-Index 60 to sit BEHIND controls (Z-70) but above Vinyl (Z-10) */}
             {stealMode && !scoredThisSong && (
                 <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-md flex items-center justify-center animate-in fade-in duration-200 pointer-events-none">
-                   <div className="text-center space-y-8 pointer-events-auto pb-32">
-                      <h3 className="text-6xl font-brand text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-orange-500 animate-pulse drop-shadow-2xl">STEAL CHANCE</h3>
-                      <p className="text-slate-400 uppercase tracking-widest text-xs">Controls are still active for replay</p>
-                      <div className="flex gap-6 justify-center">
+                   <div className="text-center w-full max-w-4xl px-4 pointer-events-auto pb-32 flex flex-col items-center">
+                      <h3 className="text-5xl md:text-7xl font-brand text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-orange-500 animate-pulse drop-shadow-2xl mb-2">STEAL CHANCE</h3>
+                      <p className="text-slate-400 uppercase tracking-widest text-xs mb-10">Who is attempting the steal?</p>
+                      
+                      <div className="flex flex-col gap-4 w-full max-w-2xl">
                          {gameState.teams.map((t, i) => i !== gameState.currentTurnTeamIndex ? (
-                           <button key={t.id} onClick={() => award(t.id, 1)} className="px-12 py-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[2.5rem] font-brand text-3xl shadow-2xl hover:scale-105 transition-transform border-4 border-indigo-400/20">{t.name} +1</button>
+                           <div key={t.id} className="flex items-center justify-between gap-4 bg-white/5 p-4 rounded-3xl border border-white/10 hover:border-white/20 transition-all">
+                              <span className="text-2xl font-brand text-white pl-4">{t.name}</span>
+                              <div className="flex gap-3">
+                                <button onClick={() => award(t.id, 1)} className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-bold uppercase tracking-wider shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-2 text-sm">
+                                   <CheckCircle size={18} /> Correct (+1)
+                                </button>
+                                <button onClick={handleStealFailed} className="px-6 py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl font-bold uppercase tracking-wider shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-2 text-sm">
+                                   <XCircle size={18} /> Wrong (0)
+                                </button>
+                              </div>
+                           </div>
                          ) : null)}
                       </div>
-                      <button onClick={() => { pushToHistory(); setStealMode(false); }} className="text-slate-500 hover:text-white font-bold uppercase tracking-[0.2em] text-sm mt-8">Cancel Steal</button>
+
+                      <button onClick={() => { pushToHistory(); setStealMode(false); }} className="text-slate-500 hover:text-white font-bold uppercase tracking-[0.2em] text-xs mt-12 px-6 py-3 rounded-xl hover:bg-white/5 transition-colors">
+                        Skip Steal
+                      </button>
                    </div>
                 </div>
             )}
@@ -804,7 +854,12 @@ const App: React.FC = () => {
                  <div className="space-y-6">
                     <h2 className="text-5xl font-brand text-center mb-12 dark:text-white">Hall of Fame</h2>
                     {history.map(h => (
-                       <div key={h.id} className="glass-panel p-8 rounded-[2.5rem] flex flex-col md:flex-row justify-between items-center gap-8">
+                       <div key={h.id} className="glass-panel p-8 rounded-[2.5rem] flex flex-col md:flex-row justify-between items-center gap-8 relative group">
+                          {h.setId && (
+                            <button onClick={() => handleReplay(h.setId)} className="absolute top-6 right-6 p-3 bg-white/20 hover:bg-indigo-600 text-slate-500 hover:text-white rounded-xl transition-all shadow-md group-hover:scale-105" title="Replay this game">
+                               <Repeat size={20} />
+                            </button>
+                          )}
                           <div className="text-center md:text-left"><h4 className="text-2xl font-bold dark:text-white">{h.setName}</h4><p className="text-sm font-mono text-slate-500">{new Date(h.dateTime).toLocaleDateString()}</p></div>
                           <div className="flex gap-4">{h.teams.map((t, i) => (<div key={t.id} className={`px-6 py-4 rounded-2xl border flex flex-col items-center min-w-[100px] ${i===0?'bg-amber-100/50 border-amber-200':'bg-white/50 border-slate-100'}`}><span className="text-[10px] font-bold uppercase tracking-widest opacity-60">{t.name}</span><span className="text-3xl font-brand text-slate-800">{t.score}</span></div>))}</div>
                        </div>

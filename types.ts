@@ -59,6 +59,7 @@ export interface GameState {
 export interface GameResult {
   id: string;
   dateTime: number;
+  setId?: string; // Optional for backward compatibility, but used for Replay
   setName: string;
   teams: Team[];
 }
