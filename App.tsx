@@ -50,7 +50,10 @@ import {
   Share,
   PlusSquare,
   AlertCircle,
-  Grid
+  Grid,
+  Disc,
+  Volume2,
+  Gamepad2
 } from 'lucide-react';
 
 import { GameResult, GameSet, GameSetSong, GameState, Song, Team, Platform } from './types';
@@ -125,31 +128,27 @@ const BackgroundDecoration = () => (
   </div>
 );
 
-const DashboardCard: React.FC<{
-  title: string;
-  subtitle: string;
+const MainMenuButton: React.FC<{
+  label: string;
   icon: React.ReactNode;
+  active?: boolean;
   onClick: () => void;
-  colorClass: string;
-  bgGradient: string;
-  compact?: boolean;
-}> = ({ title, subtitle, icon, onClick, colorClass, bgGradient, compact }) => (
-  <button
+  description?: string;
+}> = ({ label, icon, active, onClick, description }) => (
+  <button 
     onClick={onClick}
-    className={`group w-full glass-card text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl relative overflow-hidden ${bgGradient} ${compact ? 'p-3 rounded-[1.25rem] flex items-center gap-3' : 'p-6 rounded-[2rem]'}`}
+    className={`group w-full flex items-center justify-between p-4 rounded-xl transition-all duration-300 border-2 text-left ${active ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg scale-105' : 'bg-white/50 dark:bg-white/5 border-transparent hover:bg-white/80 dark:hover:bg-white/10 hover:border-indigo-400/30 text-slate-600 dark:text-slate-300'}`}
   >
-    <div className={`absolute top-0 right-0 opacity-10 group-hover:opacity-20 transition-opacity transform ${compact ? 'scale-125 translate-x-2 -translate-y-2' : 'scale-150 p-6 translate-x-4 -translate-y-4'}`}>
-       {React.cloneElement(icon as React.ReactElement<any>, { size: compact ? 56 : 100 })}
+    <div className="flex items-center gap-4">
+      <div className={`p-2 rounded-lg ${active ? 'bg-white/20' : 'bg-slate-200 dark:bg-black/20 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/30'} transition-colors`}>
+        {React.cloneElement(icon as React.ReactElement, { size: 20, className: active ? 'text-white' : 'text-slate-500 dark:text-slate-400 group-hover:text-indigo-500' })}
+      </div>
+      <div>
+        <h3 className="font-brand text-lg uppercase leading-none tracking-wide">{label}</h3>
+        {description && <p className={`text-[10px] font-bold uppercase tracking-widest mt-1 ${active ? 'text-indigo-200' : 'text-slate-400'}`}>{description}</p>}
+      </div>
     </div>
-    
-    <div className={`rounded-xl shadow-sm bg-white/90 dark:bg-black/40 backdrop-blur-md group-hover:scale-110 transition-transform duration-300 shrink-0 flex items-center justify-center ${compact ? 'w-10 h-10' : 'w-fit p-3 mb-4'}`}>
-      {React.cloneElement(icon as React.ReactElement<any>, { size: compact ? 20 : 32, className: colorClass })}
-    </div>
-    
-    <div>
-      <h3 className={`${compact ? 'text-lg' : 'text-xl md:text-2xl'} font-brand text-slate-800 dark:text-white tracking-tight leading-none mb-1`}>{title}</h3>
-      <p className="text-slate-600 dark:text-slate-300 text-[10px] md:text-xs font-semibold leading-tight opacity-80">{subtitle}</p>
-    </div>
+    {active && <ChevronRight className="animate-pulse" />}
   </button>
 );
 
@@ -524,7 +523,7 @@ const App: React.FC = () => {
   }, [editingSongId, setDraft]);
 
   return (
-    <div className={`min-h-screen flex flex-col transition-colors duration-500 bg-mesh-light text-slate-900 dark:bg-mesh-dark dark:text-slate-100 selection:bg-fuchsia-500/30 font-sans overflow-hidden`}>
+    <div className={`min-h-screen flex flex-col transition-colors duration-500 ${theme === 'light' ? 'bg-mesh-light text-slate-900' : 'bg-mesh-dark text-slate-100'} selection:bg-fuchsia-500/30 font-sans overflow-hidden`}>
       <BackgroundDecoration />
       <audio ref={audioRef} className="hidden" />
 
@@ -553,121 +552,224 @@ const App: React.FC = () => {
       </header>
 
       {/* Main Content Area - constrained to viewport height for home view */}
-      <main className={`flex-grow p-4 md:p-6 z-10 ${view === 'home' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'}`}>
+      <main className={`flex-grow p-4 md:p-6 z-10 ${view === 'home' || view === 'game' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'}`}>
         
-        {/* HOME VIEW - DASHBOARD LAYOUT */}
+        {/* HOME VIEW - TITLE SCREEN LAYOUT */}
         {view === 'home' && (
-          <div className="w-full h-full max-w-[1600px] mx-auto animate-in fade-in duration-700 flex flex-col lg:flex-row gap-4">
+          <div className="w-full h-full max-w-5xl mx-auto animate-in fade-in duration-700 flex flex-col md:flex-row gap-8 items-center justify-center">
             
-            {/* Left Column: Hero & Actions (45% Width on Large) */}
-            <div className="flex-col gap-4 flex lg:w-5/12 shrink-0 h-full overflow-y-auto lg:overflow-hidden custom-scrollbar pb-6 lg:pb-0">
-               
-               {/* Hero Section */}
-               <div className="space-y-4 py-4 md:py-6 pl-2">
-                 <h1 className="text-5xl md:text-7xl font-display dark:glow-text-neon tracking-normal text-slate-900 dark:text-white leading-[0.9] drop-shadow-xl uppercase">
-                    MELODY<br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 via-fuchsia-500 to-indigo-500">MATCH</span>
+            {/* Left: Main Menu */}
+            <div className="w-full md:w-5/12 space-y-4">
+               <div className="mb-8 pl-2">
+                 <h1 className="text-5xl md:text-6xl font-display dark:glow-text-neon tracking-normal text-slate-900 dark:text-white leading-[0.9] uppercase">
+                    MELODY<br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-fuchsia-500">MATCH</span>
                  </h1>
-                 <p className="text-slate-600 dark:text-slate-400 font-bold text-sm md:text-base tracking-[0.3em] uppercase opacity-90 max-w-md border-l-4 border-indigo-500 pl-4 py-1">
-                    The Ultimate Music Quiz Engine
-                 </p>
+                 <div className="h-1 w-24 bg-gradient-to-r from-indigo-500 to-fuchsia-500 rounded-full mt-4 mb-2"></div>
+                 <p className="text-xs font-bold uppercase tracking-[0.3em] text-slate-400">Quiz Engine v2.0</p>
                </div>
 
-               {/* Action Buttons - Stacked or Grid */}
-               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-3">
-                  <DashboardCard 
-                    title="Library" 
-                    subtitle={`${songs.length} Tracks`} 
-                    icon={<LibraryBig />} 
-                    onClick={() => setView('library')} 
-                    colorClass="text-indigo-600 dark:text-indigo-400" 
-                    bgGradient="bg-gradient-to-br from-indigo-500/10 to-blue-500/10 hover:from-indigo-500/20 hover:to-blue-500/20 border-indigo-200/50 dark:border-indigo-500/30"
-                    compact
+               <div className="space-y-3">
+                  <MainMenuButton 
+                     label="Quick Play" 
+                     icon={<Gamepad2 />} 
+                     description={`${sets.length} Games Ready`}
+                     active={true}
+                     onClick={() => {}}
                   />
-                  <DashboardCard 
-                    title={setDraft ? "Resume" : "Builder"} 
-                    subtitle={setDraft ? "Draft Active" : "Create New"} 
-                    icon={setDraft ? <Clock /> : <ListPlus />} 
-                    onClick={() => { if (!setDraft) setSetDraft({ id: crypto.randomUUID(), name: '', description: '', songs: [], createdAt: Date.now() }); setView('setBuilder'); }} 
-                    colorClass="text-fuchsia-600 dark:text-fuchsia-400" 
-                    bgGradient="bg-gradient-to-br from-fuchsia-500/10 to-pink-500/10 hover:from-fuchsia-500/20 hover:to-pink-500/20 border-fuchsia-200/50 dark:border-fuchsia-500/30"
-                    compact
+                  <MainMenuButton 
+                     label="Game Builder" 
+                     icon={<ListPlus />} 
+                     description="Create & Edit"
+                     onClick={() => { if (!setDraft) setSetDraft({ id: crypto.randomUUID(), name: '', description: '', songs: [], createdAt: Date.now() }); setView('setBuilder'); }}
                   />
-                  <DashboardCard 
-                    title="Hall of Fame" 
-                    subtitle="High Scores" 
-                    icon={<Trophy />} 
-                    onClick={() => setView('history')} 
-                    colorClass="text-amber-500" 
-                    bgGradient="bg-gradient-to-br from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20 border-amber-200/50 dark:border-amber-500/30"
-                    compact
+                  <MainMenuButton 
+                     label="Music Vault" 
+                     icon={<LibraryBig />} 
+                     description={`${songs.length} Tracks`}
+                     onClick={() => setView('library')}
                   />
-                  <button onClick={importSetFile} className="p-3 rounded-[1.25rem] glass-card flex items-center gap-3 group hover:shadow-xl hover:-translate-y-1 transition-all bg-slate-100/50 dark:bg-white/5 border-dashed border-2 border-slate-300 dark:border-white/10 hover:border-indigo-400">
-                    <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-white/10 flex items-center justify-center shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                      <FileUp size={20} className="text-slate-500 dark:text-slate-400 group-hover:text-white"/>
-                    </div>
-                    <div className="text-left">
-                       <h3 className="text-lg font-brand text-slate-700 dark:text-slate-300">Import File</h3>
-                       <p className="text-xs text-slate-500 uppercase tracking-wider font-bold">.mmset</p>
-                    </div>
-                  </button>
+                  <MainMenuButton 
+                     label="Hall of Fame" 
+                     icon={<Trophy />} 
+                     onClick={() => setView('history')}
+                  />
                </div>
                
-               <div className="mt-auto hidden lg:block">
-                  <button onClick={() => setShowInstall(true)} className="flex items-center gap-3 text-xs font-black uppercase tracking-widest text-slate-400 hover:text-indigo-500 transition-colors px-2 py-4">
-                     <Download size={16} /> Install App for Offline Use
-                  </button>
+               <div className="pt-4 flex gap-3">
+                 <button onClick={importSetFile} className="flex-1 py-3 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold uppercase text-slate-500 hover:text-indigo-500 hover:border-indigo-400 transition-colors flex items-center justify-center gap-2"><FileUp size={14}/> Import Set</button>
+                 <button onClick={() => setShowInstall(true)} className="flex-1 py-3 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold uppercase text-slate-500 hover:text-indigo-500 hover:border-indigo-400 transition-colors flex items-center justify-center gap-2"><Download size={14}/> Install App</button>
                </div>
             </div>
 
-            {/* Right Column: Quick Play Console (Fill Remaining) */}
-            <div className="flex-grow lg:w-7/12 glass-panel rounded-[2.5rem] p-6 md:p-8 shadow-2xl flex flex-col h-full overflow-hidden relative border border-white/40 dark:border-white/5">
-               <div className="absolute top-0 right-0 p-8 opacity-5 dark:opacity-[0.02] pointer-events-none">
-                  <Grid size={300} />
-               </div>
-
-               <div className="flex justify-between items-center mb-6 shrink-0 relative z-10">
-                  <h2 className="text-slate-700 dark:text-slate-200 font-brand text-lg uppercase tracking-wide flex items-center gap-3">
-                    <Zap size={20} className="text-yellow-500 fill-yellow-500"/> Quick Play
+            {/* Right: Stage Preview (Quick Play List) */}
+            <div className="w-full md:w-7/12 h-[500px] glass-panel rounded-[2.5rem] p-6 shadow-2xl flex flex-col relative overflow-hidden border border-white/40 dark:border-white/5">
+               <div className="flex justify-between items-center mb-6 shrink-0 relative z-10 border-b border-slate-200 dark:border-white/5 pb-4">
+                  <h2 className="text-slate-700 dark:text-white font-brand text-lg uppercase tracking-wider flex items-center gap-2">
+                    <Zap size={18} className="text-yellow-500 fill-yellow-500"/> Available Games
                   </h2>
-                  <div className="px-3 py-1 bg-slate-100 dark:bg-white/10 rounded-lg text-[10px] font-bold uppercase text-slate-500 tracking-widest">
-                    {sets.length} Games Available
-                  </div>
                </div>
 
                {sets.length === 0 ? (
-                  <div className="flex-grow flex flex-col items-center justify-center gap-6 text-slate-400 bg-slate-50/50 dark:bg-black/20 rounded-[2rem] border-2 border-dashed border-slate-200 dark:border-white/5 mx-2 mb-2">
-                    <Music size={48} className="opacity-30" />
-                    <div className="text-center">
-                      <p className="font-brand text-lg uppercase tracking-widest opacity-60 mb-2">No Games Found</p>
-                      <button onClick={() => { setSetDraft({ id: crypto.randomUUID(), name: '', description: '', songs: [], createdAt: Date.now() }); setView('setBuilder'); }} className="text-indigo-500 hover:underline text-xs font-bold uppercase tracking-widest">Create your first game</button>
-                    </div>
+                  <div className="flex-grow flex flex-col items-center justify-center gap-4 text-slate-400">
+                    <Music size={40} className="opacity-20" />
+                    <p className="font-mono text-xs uppercase tracking-widest opacity-60">No Games Found</p>
                   </div>
                ) : (
-                  <div className="flex-grow overflow-y-auto custom-scrollbar pr-2 space-y-3">
+                  <div className="flex-grow overflow-y-auto custom-scrollbar pr-2 space-y-2">
                     {sets.map(s => (
-                      <div key={s.id} className="p-4 bg-white/60 dark:bg-slate-900/40 rounded-[1.5rem] border border-white/40 dark:border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-indigo-400/50 hover:bg-white/80 dark:hover:bg-slate-800/60 transition-all group">
-                        <div className="truncate w-full sm:w-auto">
-                            <h4 className="text-lg font-brand text-slate-800 dark:text-white truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{s.name || 'Untitled Game'}</h4>
-                            <div className="flex items-center gap-3 mt-1">
-                               <span className="text-[10px] bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 font-bold uppercase tracking-wider px-2 py-0.5 rounded-md">{s.songs.length} Tracks</span>
-                               <span className="text-[10px] text-slate-400 font-mono">{new Date(s.createdAt).toLocaleDateString()}</span>
+                      <div key={s.id} className="p-3 bg-white/40 dark:bg-slate-900/40 rounded-xl border border-white/40 dark:border-white/5 flex items-center justify-between hover:bg-white/60 dark:hover:bg-slate-800/60 transition-all group">
+                        <div className="truncate px-2">
+                            <h4 className="text-sm font-bold text-slate-800 dark:text-white truncate group-hover:text-indigo-500 transition-colors">{s.name || 'Untitled Game'}</h4>
+                            <div className="flex items-center gap-2">
+                               <span className="text-[9px] font-mono text-slate-400 uppercase">{s.songs.length} Tracks</span>
                             </div>
                         </div>
-                        <div className="flex gap-2 w-full sm:w-auto justify-end">
-                          <button onClick={() => startGame(s, 2)} className="flex-grow sm:flex-grow-0 px-6 py-3 bg-indigo-600 rounded-xl font-bold text-sm text-white shadow-lg hover:shadow-indigo-500/30 hover:bg-indigo-500 transition-all active:scale-95 uppercase tracking-wide">Play</button>
-                          <button onClick={() => { setSetDraft(s); setView('setBuilder'); }} className="p-3 bg-slate-200 dark:bg-white/5 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-white hover:text-indigo-600 transition-colors" title="Edit"><Edit3 size={16}/></button>
-                          <button onClick={() => exportSet(s)} className="p-3 bg-slate-200 dark:bg-white/5 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-white hover:text-fuchsia-600 transition-colors" title="Export"><Share2 size={16}/></button>
+                        <div className="flex gap-2">
+                          <button onClick={() => exportSet(s)} className="p-2 text-slate-400 hover:text-fuchsia-500 transition-colors"><Share2 size={14}/></button>
+                          <button onClick={() => { setSetDraft(s); setView('setBuilder'); }} className="p-2 text-slate-400 hover:text-indigo-500 transition-colors"><Edit3 size={14}/></button>
+                          <button onClick={() => startGame(s, 2)} className="px-4 py-2 bg-indigo-600 rounded-lg font-bold text-[10px] text-white shadow-md hover:bg-indigo-500 transition-all uppercase tracking-wide">Play</button>
                         </div>
                       </div>
                     ))}
                   </div>
                )}
             </div>
+          </div>
+        )}
+
+        {/* GAME VIEW - STUDIO LAYOUT */}
+        {view === 'game' && gameState && (
+          <div className="flex flex-col h-full animate-in fade-in max-w-[1400px] mx-auto w-full relative">
             
-            <div className="lg:hidden mt-4 text-center pb-8">
-               <button onClick={() => setShowInstall(true)} className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400 hover:text-indigo-500 transition-colors bg-white/50 dark:bg-white/5 px-4 py-2 rounded-full">
-                  <Download size={14} /> Install App
-               </button>
+            {/* Top Bar: Round Info & Scoreboard */}
+            <div className="flex-shrink-0 mb-4 flex flex-col md:flex-row items-center gap-4 justify-between z-20">
+              <div className="bg-white/10 dark:bg-black/30 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/5 flex items-center gap-3">
+                <Disc className={`text-indigo-500 ${isPlaying ? 'animate-spin-slow' : ''}`} size={16} />
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
+                  Track {gameState.currentSongIndex + 1} <span className="opacity-50 mx-1">/</span> {activeSet?.songs.length}
+                </span>
+              </div>
+              
+              <Scoreboard teams={gameState.teams} currentTurnIndex={gameState.currentTurnTeamIndex} />
+            </div>
+
+            {/* Center Stage: The Vinyl Player */}
+            <div className="flex-grow flex items-center justify-center relative py-2 z-10">
+              {/* Fake Audio Visualizers jumping in background */}
+              {isPlaying && (
+                <div className="absolute inset-0 flex items-center justify-center gap-1 opacity-20 pointer-events-none scale-y-150">
+                   {[...Array(20)].map((_, i) => (
+                      <div key={i} className="w-2 bg-indigo-500 rounded-full audio-bar" style={{ animationDuration: `${Math.random() * 500 + 300}ms` }}></div>
+                   ))}
+                </div>
+              )}
+
+              <div className="relative group perspective-1000">
+                {/* The Vinyl Disc */}
+                <div className={`
+                  w-[240px] h-[240px] md:w-[320px] md:h-[320px] rounded-full border-[6px] border-slate-800 bg-[#111] shadow-2xl flex items-center justify-center relative z-20 transition-all duration-700
+                  ${isPlaying ? 'animate-spin-slow shadow-[0_0_40px_rgba(99,102,241,0.3)]' : ''}
+                  vinyl-grooves
+                `}>
+                   {/* Center Label */}
+                   <div className="w-1/3 h-1/3 bg-gradient-to-br from-indigo-500 to-fuchsia-600 rounded-full flex items-center justify-center border-4 border-[#222] shadow-inner relative">
+                      <div className="w-2 h-2 bg-black rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10"></div>
+                      <Music size={32} className="text-white/50" />
+                   </div>
+                </div>
+
+                {/* The Sleeve / Reveal Card */}
+                <div className={`
+                  absolute top-0 left-0 w-full h-full bg-white dark:bg-slate-800 rounded-xl shadow-xl flex flex-col items-center justify-center p-6 text-center border border-white/10 transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+                  ${gameState.isRevealed 
+                    ? 'translate-x-[70%] rotate-6 z-10 opacity-100' 
+                    : 'translate-x-0 rotate-0 z-0 opacity-0 scale-95'}
+                `}>
+                   {gameState.isRevealed ? (
+                     <>
+                      <Music2 size={48} className="text-indigo-500 mb-2 animate-bounce-small" />
+                      <h2 className="text-xl md:text-2xl font-brand text-slate-800 dark:text-white leading-tight">
+                        {songs.find(s => s.id === (activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]].songId))?.title}
+                      </h2>
+                      <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 mt-2">Correct Answer</p>
+                     </>
+                   ) : null}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom: Command Deck (Control Panel) */}
+            <div className="flex-shrink-0 mt-4 z-30 mb-2">
+              <div className="glass-panel rounded-3xl p-4 shadow-2xl border-t border-white/10 relative overflow-hidden">
+                 {/* Glass Reflection */}
+                 <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none"></div>
+
+                 <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
+                    
+                    {/* Audio Triggers (Left Deck) */}
+                    <div className="flex gap-2 w-full md:w-auto justify-center">
+                       {[
+                         { label: 'Intro', color: 'bg-emerald-500', icon: Play, action: () => { const cur = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(cur) playRange(cur.songId, cur.introStart || 0, cur.introEnd || 5); } },
+                         { label: 'Main', color: 'bg-indigo-500', icon: Zap, action: () => { const cur = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(cur) playRange(cur.songId, cur.clipStart, cur.clipEnd); } },
+                         { label: 'Hint', color: 'bg-amber-500', icon: Sparkles, action: () => { const cur = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(cur) playRange(cur.songId, cur.hintStart, cur.hintEnd); } },
+                         { label: 'Bonus', color: 'bg-fuchsia-500', icon: Star, action: () => { const cur = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(cur) playRange(cur.songId, cur.bonusStart || 10, cur.bonusEnd || 15); } },
+                       ].map((btn) => (
+                         <button 
+                           key={btn.label} 
+                           onClick={btn.action}
+                           className="group flex flex-col items-center justify-center gap-1 p-2 md:p-3 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 active:scale-95 transition-all border border-slate-200 dark:border-white/5 min-w-[60px]"
+                         >
+                            <div className={`p-1.5 rounded-full ${btn.color} text-white shadow-lg group-hover:scale-110 transition-transform`}>
+                               <btn.icon size={14} fill="currentColor" />
+                            </div>
+                            <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">{btn.label}</span>
+                         </button>
+                       ))}
+                    </div>
+
+                    {/* Host Controls (Right Deck) */}
+                    <div className="flex gap-3 w-full md:w-auto items-center justify-center bg-black/10 p-1.5 rounded-2xl">
+                       <button 
+                          onClick={() => award(gameState.teams[gameState.currentTurnTeamIndex].id, 2)}
+                          className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-brand text-sm shadow-lg hover:shadow-emerald-500/30 transition-all active:scale-95 uppercase tracking-wide flex items-center gap-2"
+                       >
+                          <CheckCircle size={16} /> Correct
+                       </button>
+                       
+                       {gameState.isRevealed ? (
+                         <button onClick={nextSong} className="px-5 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-lg transition-all">
+                            Next <SkipForward size={14} />
+                         </button>
+                       ) : (
+                         <div className="flex gap-2">
+                           <button onClick={() => setStealMode(true)} className="px-5 py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-bold uppercase text-[10px] tracking-widest shadow-lg active:scale-95 transition-all">
+                              Wrong
+                           </button>
+                           <button onClick={() => setGameState({...gameState, isRevealed: true})} className="px-3 py-3 bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-300 rounded-xl hover:bg-white hover:text-slate-900 transition-colors">
+                              <SkipForward size={16} />
+                           </button>
+                         </div>
+                       )}
+                    </div>
+                 </div>
+
+                 {/* Steal Mode Popup */}
+                 {stealMode && !scoredThisSong && (
+                    <div className="absolute inset-0 bg-slate-900/95 backdrop-blur-sm z-50 flex items-center justify-center animate-in fade-in slide-in-from-bottom-4">
+                       <div className="text-center w-full px-8">
+                          <h4 className="text-rose-500 font-brand text-xl uppercase mb-4 animate-pulse">Steal Chance!</h4>
+                          <div className="flex gap-3 justify-center">
+                             {gameState.teams.map((t, i) => i !== gameState.currentTurnTeamIndex ? (
+                               <button key={t.id} onClick={() => award(t.id, 1)} className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-brand text-sm shadow-xl hover:scale-105 transition-all">
+                                  {t.name} (+1)
+                               </button>
+                             ) : null)}
+                             <button onClick={() => setStealMode(false)} className="px-5 py-3 bg-slate-700 text-slate-300 rounded-2xl font-bold uppercase text-[10px] tracking-widest hover:bg-slate-600">Cancel</button>
+                          </div>
+                       </div>
+                    </div>
+                 )}
+              </div>
             </div>
           </div>
         )}
@@ -829,68 +931,6 @@ const App: React.FC = () => {
                  </div>
               </div>
            </div>
-        )}
-
-        {view === 'game' && gameState && (
-           <div className="max-w-7xl mx-auto w-full space-y-12 animate-in fade-in">
-             <Scoreboard teams={gameState.teams} currentTurnIndex={gameState.currentTurnTeamIndex} />
-             <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-                <div className="flex flex-col items-center gap-12">
-                  <div className={`w-full aspect-video rounded-[4rem] border-[10px] flex flex-col items-center justify-center transition-all duration-700 relative overflow-hidden shadow-2xl ${gameState.isRevealed ? 'bg-gradient-to-br from-indigo-600 to-fuchsia-600 border-indigo-400' : 'glass-panel border-white/20'}`}>
-                   {/* Background spin effect for game card */}
-                   {!gameState.isRevealed && <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white/10 to-transparent animate-pulse-slow"></div>}
-                   
-                   {gameState.isRevealed ? (
-                     <div className="text-center animate-in zoom-in-50 duration-500 space-y-8 z-10 p-8">
-                       <Music size={120} className="mx-auto text-white/30 animate-bounce" />
-                       <h2 className="text-5xl md:text-7xl font-brand text-white px-4 leading-tight drop-shadow-md">{songs.find(s => s.id === (activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]].songId))?.title}</h2>
-                     </div>
-                   ) : (
-                     <div className="flex flex-col items-center z-10">
-                       <span className="text-[14rem] font-display text-indigo-900/20 dark:text-white/20 select-none animate-float-slow">?</span>
-                       <p className="text-indigo-900/40 dark:text-white/40 font-brand tracking-[0.6em] text-lg uppercase -mt-10">Track {gameState.currentSongIndex + 1}</p>
-                     </div>
-                   )}
-                  </div>
-                
-                  {/* 2x2 Button Grid for Game Controls */}
-                  <div className="grid grid-cols-2 gap-6 w-full max-w-lg">
-                     {/* Intro - Green */}
-                     <button onClick={() => { const cur = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(cur) playRange(cur.songId, cur.introStart || 0, cur.introEnd || 5); }} className="py-8 bg-emerald-500 hover:bg-emerald-400 text-white rounded-[2.5rem] font-brand text-2xl shadow-xl flex flex-col items-center gap-2 border-b-[6px] border-emerald-700 active:scale-95 active:border-b-0 active:translate-y-2 transition-all">
-                        <Play size={32} fill="currentColor"/> <span className="text-sm opacity-80">INTRO</span>
-                     </button>
-
-                     {/* Main - Indigo */}
-                     <button onClick={() => { const cur = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(cur) playRange(cur.songId, cur.clipStart, cur.clipEnd); }} className="py-8 bg-indigo-500 hover:bg-indigo-400 text-white rounded-[2.5rem] font-brand text-2xl shadow-xl flex flex-col items-center gap-2 border-b-[6px] border-indigo-700 active:scale-95 active:border-b-0 active:translate-y-2 transition-all">
-                        <Zap size={32} fill="currentColor"/> <span className="text-sm opacity-80">MAIN</span>
-                     </button>
-                     
-                     {/* Hint - Amber */}
-                     <button onClick={() => { const cur = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(cur) playRange(cur.songId, cur.hintStart, cur.hintEnd); }} className="py-8 bg-amber-500 hover:bg-amber-400 text-white rounded-[2.5rem] font-brand text-2xl shadow-xl flex flex-col items-center gap-2 border-b-[6px] border-amber-700 active:scale-95 active:border-b-0 active:translate-y-2 transition-all">
-                        <Sparkles size={32} fill="currentColor"/> <span className="text-sm opacity-80">HINT</span>
-                     </button>
-
-                     {/* Bonus - Rose */}
-                     <button onClick={() => { const cur = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(cur) playRange(cur.songId, cur.bonusStart || 10, cur.bonusEnd || 15); }} className="py-8 bg-fuchsia-500 hover:bg-fuchsia-400 text-white rounded-[2.5rem] font-brand text-2xl shadow-xl flex flex-col items-center gap-2 border-b-[6px] border-fuchsia-700 active:scale-95 active:border-b-0 active:translate-y-2 transition-all">
-                        <Star size={32} fill="currentColor"/> <span className="text-sm opacity-80">BONUS</span>
-                     </button>
-                  </div>
-                </div>
-
-                <div className="glass-panel p-16 rounded-[4rem] space-y-12 shadow-2xl backdrop-blur-xl relative">
-                   <h3 className="text-center font-brand text-slate-400 dark:text-slate-500 tracking-[0.5em] uppercase text-sm">Host Terminal</h3>
-                   <div className="space-y-8">
-                      <button onClick={() => award(gameState.teams[gameState.currentTurnTeamIndex].id, 2)} className="w-full py-10 bg-gradient-to-r from-emerald-500 to-emerald-400 text-white rounded-[3rem] font-brand text-6xl shadow-[0_15px_40px_rgba(16,185,129,0.4)] transition-all active:scale-95 hover:brightness-110">Correct</button>
-                      <div className="grid grid-cols-2 gap-6">
-                        <button onClick={() => setStealMode(true)} className="py-8 bg-rose-500 hover:bg-rose-400 text-white rounded-[2.5rem] font-brand text-3xl shadow-lg active:scale-95 uppercase transition-all">Wrong</button>
-                        <button onClick={() => setGameState({...gameState, isRevealed: true})} className="py-8 bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-300 rounded-[2.5rem] font-brand text-3xl uppercase hover:bg-slate-300 dark:hover:bg-white/20 transition-all">Skip</button>
-                      </div>
-                      {stealMode && !scoredThisSong && (<div className="p-8 bg-indigo-100/50 dark:bg-indigo-900/30 rounded-[3rem] border-2 border-indigo-500/30 space-y-6 animate-in slide-in-from-bottom-4"><p className="text-center text-xs font-black tracking-widest text-indigo-600 dark:text-indigo-400 uppercase">Steal Chance (+1)</p><div className="flex gap-4">{gameState.teams.map((t, i) => i !== gameState.currentTurnTeamIndex ? (<button key={t.id} onClick={() => award(t.id, 1)} className="flex-grow py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-3xl font-brand text-xl shadow-lg transition-colors">{t.name}</button>) : null)}</div></div>)}
-                   </div>
-                   {gameState.isRevealed && (<button onClick={nextSong} className="w-full py-10 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-[3rem] font-brand text-4xl flex items-center justify-center gap-6 uppercase shadow-2xl hover:scale-[1.02] transition-transform">Next Track <SkipForward size={40} strokeWidth={3}/></button>)}
-                </div>
-             </div>
-          </div>
         )}
 
         {/* ... (Rest of the views remain the same) ... */}
