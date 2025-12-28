@@ -58,7 +58,8 @@ import {
   FastForward,
   PlayCircle,
   Eye,
-  ListMusic
+  ListMusic,
+  RotateCcw
 } from 'lucide-react';
 
 import { GameResult, GameSet, GameSetSong, GameState, Song, Team, Platform } from './types';
@@ -159,6 +160,9 @@ const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [stealMode, setStealMode] = useState(false);
   const [scoredThisSong, setScoredThisSong] = useState(false);
+  
+  // Game Logic History (Undo Stack)
+  const [gameHistoryStack, setGameHistoryStack] = useState<{state: GameState, stealMode: boolean, scored: boolean}[]>([]);
 
   const [playingSongId, setPlayingSongId] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -381,16 +385,62 @@ const App: React.FC = () => {
   const startGame = (set: GameSet, teamsCount: number) => {
     const teams: Team[] = Array.from({ length: teamsCount }).map((_, i) => ({ id: crypto.randomUUID(), name: `Team ${i + 1}`, score: 0 }));
     const indices = Array.from({ length: set.songs.length }).map((_, i) => i).sort(() => Math.random() - 0.5);
-    setActiveSet(set); setGameState({ id: crypto.randomUUID(), setId: set.id, teams, currentSongIndex: 0, currentTurnTeamIndex: 0, isRevealed: false, stealAttempted: false, isFinished: false, shuffledIndices: indices }); setStealMode(false); setScoredThisSong(false); setView('game');
+    setActiveSet(set); 
+    setGameState({ id: crypto.randomUUID(), setId: set.id, teams, currentSongIndex: 0, currentTurnTeamIndex: 0, isRevealed: false, stealAttempted: false, isFinished: false, shuffledIndices: indices }); 
+    setStealMode(false); 
+    setScoredThisSong(false); 
+    setGameHistoryStack([]); // Clear undo history on new game
+    setView('game');
   };
 
-  const award = (teamId: string, pts: number) => { if (!gameState) return; setGameState({ ...gameState, teams: gameState.teams.map(t => t.id === teamId ? { ...t, score: t.score + pts } : t), isRevealed: false, stealAttempted: true }); setScoredThisSong(true); setStealMode(false); };
+  // Undo System Helper
+  const pushToHistory = () => {
+    if (!gameState) return;
+    setGameHistoryStack(prev => [...prev, {
+      state: JSON.parse(JSON.stringify(gameState)), // Deep copy state
+      stealMode,
+      scored: scoredThisSong
+    }]);
+  };
+
+  const performUndo = () => {
+    if (gameHistoryStack.length === 0) return;
+    const last = gameHistoryStack[gameHistoryStack.length - 1];
+    setGameState(last.state);
+    setStealMode(last.stealMode);
+    setScoredThisSong(last.scored);
+    setGameHistoryStack(prev => prev.slice(0, -1));
+    
+    // Stop audio if rewinding track
+    stopAudio();
+    setPlayingSongId(null);
+  };
+
+  const award = (teamId: string, pts: number) => { 
+    if (!gameState) return; 
+    pushToHistory(); // Save state before change
+    setGameState({ ...gameState, teams: gameState.teams.map(t => t.id === teamId ? { ...t, score: t.score + pts } : t), isRevealed: false, stealAttempted: true }); 
+    setScoredThisSong(true); 
+    setStealMode(false); 
+  };
 
   const nextSong = () => {
-    if (!gameState || !activeSet) return; const isLast = gameState.currentSongIndex >= activeSet.songs.length - 1;
+    if (!gameState || !activeSet) return; 
+    pushToHistory(); // Save state before change
+    const isLast = gameState.currentSongIndex >= activeSet.songs.length - 1;
     stopAudio(); // Ensure audio stops between tracks
     if (isLast) { const result: GameResult = { id: crypto.randomUUID(), dateTime: Date.now(), setName: activeSet.name, teams: gameState.teams }; persistence.saveHistory(result); setHistory(prev => [result, ...prev]); setView('history'); setGameState(null); } 
     else { setGameState({ ...gameState, currentSongIndex: gameState.currentSongIndex + 1, currentTurnTeamIndex: (gameState.currentTurnTeamIndex + 1) % gameState.teams.length, isRevealed: false, stealAttempted: false }); setStealMode(false); setScoredThisSong(false); }
+  };
+
+  const triggerStealMode = () => {
+      pushToHistory();
+      setStealMode(true);
+  };
+
+  const triggerReveal = () => {
+      pushToHistory();
+      if(gameState) setGameState({...gameState, isRevealed: true});
   };
 
   const collections = useMemo(() => Array.from(new Set(songs.map(s => s.category || 'General'))).sort(), [songs]);
@@ -599,6 +649,16 @@ const App: React.FC = () => {
             <div className="absolute bottom-10 z-[70]">
                <div className="flex items-center gap-2 p-2 rounded-full bg-black/60 dark:bg-slate-900/80 backdrop-blur-2xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
                   
+                  {/* UNDO BUTTON (History) - Visible only if there's history */}
+                  {gameHistoryStack.length > 0 && (
+                    <div className="border-r border-white/10 pr-2 mr-1">
+                      <button onClick={performUndo} className="w-12 h-12 rounded-full flex items-center justify-center bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-all active:scale-95 group relative">
+                         <RotateCcw size={18} />
+                         <span className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 bg-black text-white text-[9px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Undo Action</span>
+                      </button>
+                    </div>
+                  )}
+
                   {/* Audio Regions */}
                   <div className="flex gap-1 pr-4 border-r border-white/10">
                      {[
@@ -624,8 +684,8 @@ const App: React.FC = () => {
                      
                      {!gameState.isRevealed ? (
                        <>
-                         <button onClick={() => setStealMode(true)} className="px-6 h-12 bg-rose-600 hover:bg-rose-500 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg hover:-translate-y-0.5 transition-all">Wrong</button>
-                         <button onClick={() => setGameState({...gameState, isRevealed: true})} className="px-6 h-12 bg-slate-700 hover:bg-slate-600 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2">
+                         <button onClick={triggerStealMode} className="px-6 h-12 bg-rose-600 hover:bg-rose-500 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg hover:-translate-y-0.5 transition-all">Wrong</button>
+                         <button onClick={triggerReveal} className="px-6 h-12 bg-slate-700 hover:bg-slate-600 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2">
                             <Eye size={18} /> Reveal Identity
                          </button>
                        </>
@@ -647,7 +707,7 @@ const App: React.FC = () => {
                            <button key={t.id} onClick={() => award(t.id, 1)} className="px-12 py-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[2.5rem] font-brand text-3xl shadow-2xl hover:scale-105 transition-transform border-4 border-indigo-400/20">{t.name} +1</button>
                          ) : null)}
                       </div>
-                      <button onClick={() => setStealMode(false)} className="text-slate-500 hover:text-white font-bold uppercase tracking-[0.2em] text-sm mt-8">Cancel Steal</button>
+                      <button onClick={() => { pushToHistory(); setStealMode(false); }} className="text-slate-500 hover:text-white font-bold uppercase tracking-[0.2em] text-sm mt-8">Cancel Steal</button>
                    </div>
                 </div>
             )}
