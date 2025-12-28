@@ -175,6 +175,7 @@ const App: React.FC = () => {
   const [showInstall, setShowInstall] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [installError, setInstallError] = useState<string | null>(null);
+  const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -183,20 +184,43 @@ const App: React.FC = () => {
     localStorage.setItem('mm_theme', theme);
   }, [theme]);
 
+  // Handle Install Prompt Logic
   useEffect(() => {
-    const handler = (e: any) => { e.preventDefault(); setDeferredPrompt(e); setInstallError(null); };
+    const handler = (e: any) => { 
+        e.preventDefault(); 
+        setDeferredPrompt(e); 
+        setInstallError(null); 
+    };
     window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+
+    // Check if already in standalone mode
+    const checkStandalone = () => {
+      const isStandaloneQuery = window.matchMedia('(display-mode: standalone)');
+      setIsStandalone(isStandaloneQuery.matches);
+    };
+    checkStandalone();
+    window.matchMedia('(display-mode: standalone)').addEventListener('change', checkStandalone);
+
+    return () => {
+        window.removeEventListener('beforeinstallprompt', handler);
+    };
   }, []);
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) {
-      setInstallError("Install prompt unavailable. Check browser address bar.");
+      setInstallError("Browser blocked prompt. Please use the 'Install' icon in your browser address bar.");
       return;
     }
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') { setDeferredPrompt(null); setShowInstall(false); }
+    try {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') { 
+            setDeferredPrompt(null); 
+            setShowInstall(false); 
+        }
+    } catch (e) {
+        setInstallError("Installation failed. Please use browser menu.");
+    }
   };
 
   useEffect(() => {
@@ -560,9 +584,14 @@ const App: React.FC = () => {
                     />
                  </div>
                  
-                 <div className="lg:hidden">
-                    <button onClick={() => setShowInstall(true)} className="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-indigo-500 flex items-center justify-center gap-2 p-4 bg-white/50 dark:bg-white/5 rounded-xl"><Download size={14}/> Install App Offline</button>
-                 </div>
+                 {/* Install App Button - Visible if NOT installed/standalone */}
+                 {!isStandalone && (
+                    <div className="w-full max-w-2xl mx-auto lg:mx-0 mt-8">
+                        <button onClick={() => setShowInstall(true)} className="w-full text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-indigo-500 flex items-center justify-center gap-2 p-4 bg-white/50 dark:bg-white/5 rounded-xl border border-white/20 hover:border-indigo-200 transition-all hover:scale-[1.01] active:scale-95">
+                           <Download size={16} /> Install App for Offline Use
+                        </button>
+                    </div>
+                 )}
               </div>
 
               {/* Right Col: Quick Play Stage */}
@@ -893,14 +922,29 @@ const App: React.FC = () => {
 
       {showInstall && (
          <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-900 p-10 rounded-[3rem] w-full max-w-2xl text-center relative">
-               <button onClick={() => setShowInstall(false)} className="absolute top-6 right-6 p-2 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-rose-100 text-slate-400 hover:text-rose-500"><X size={20}/></button>
+            <div className="bg-white dark:bg-slate-900 p-10 rounded-[3rem] w-full max-w-2xl text-center relative animate-in fade-in zoom-in duration-300">
+               <button onClick={() => setShowInstall(false)} className="absolute top-6 right-6 p-2 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-rose-100 text-slate-400 hover:text-rose-500 transition-colors"><X size={20}/></button>
                <Download size={64} className="mx-auto text-indigo-500 mb-6" />
                <h2 className="text-4xl font-brand mb-4 dark:text-white">Install App</h2>
                <p className="text-lg text-slate-600 dark:text-slate-400 mb-8">Get the best performance by installing MelodyMatch as a native app.</p>
+               
+               {installError && (
+                  <div className="mb-6 p-4 bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-200 rounded-xl text-sm font-bold flex items-center gap-2 justify-center">
+                     <AlertCircle size={18} /> {installError}
+                  </div>
+               )}
+
                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl"><h4 className="font-bold mb-2 dark:text-white">Windows / Android</h4><button onClick={handleInstallClick} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg hover:bg-indigo-500">Install Now</button></div>
-                  <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl"><h4 className="font-bold mb-2 dark:text-white">iOS</h4><p className="text-xs text-slate-500 dark:text-slate-400">Share &gt; Add to Home Screen</p></div>
+                  <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl">
+                     <h4 className="font-bold mb-2 dark:text-white">Windows / Android</h4>
+                     <button onClick={handleInstallClick} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg hover:bg-indigo-500 transition-all active:scale-95">
+                        {deferredPrompt ? 'Install Now' : 'Check Address Bar'}
+                     </button>
+                  </div>
+                  <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl">
+                     <h4 className="font-bold mb-2 dark:text-white">iOS</h4>
+                     <p className="text-xs text-slate-500 dark:text-slate-400">Tap <Share size={10} className="inline"/> Share &gt; Add to Home Screen</p>
+                  </div>
                </div>
             </div>
          </div>
