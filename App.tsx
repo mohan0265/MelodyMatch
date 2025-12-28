@@ -60,7 +60,8 @@ import {
   Eye,
   ListMusic,
   RotateCcw,
-  Repeat
+  Repeat,
+  MonitorDown
 } from 'lucide-react';
 
 import { GameResult, GameSet, GameSetSong, GameState, Song, Team, Platform } from './types';
@@ -174,7 +175,6 @@ const App: React.FC = () => {
 
   const [showInstall, setShowInstall] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [installError, setInstallError] = useState<string | null>(null);
   const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
@@ -189,7 +189,7 @@ const App: React.FC = () => {
     const handler = (e: any) => { 
         e.preventDefault(); 
         setDeferredPrompt(e); 
-        setInstallError(null); 
+        console.log("Install prompt captured");
     };
     window.addEventListener('beforeinstallprompt', handler);
 
@@ -207,10 +207,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleInstallClick = async () => {
-    if (!deferredPrompt) {
-      setInstallError("Browser blocked prompt. Please use the 'Install' icon in your browser address bar.");
-      return;
-    }
+    if (!deferredPrompt) return;
     try {
         deferredPrompt.prompt();
         const { outcome } = await deferredPrompt.userChoice;
@@ -219,7 +216,7 @@ const App: React.FC = () => {
             setShowInstall(false); 
         }
     } catch (e) {
-        setInstallError("Installation failed. Please use browser menu.");
+        console.error("Install prompt failed", e);
     }
   };
 
@@ -928,22 +925,34 @@ const App: React.FC = () => {
                <h2 className="text-4xl font-brand mb-4 dark:text-white">Install App</h2>
                <p className="text-lg text-slate-600 dark:text-slate-400 mb-8">Get the best performance by installing MelodyMatch as a native app.</p>
                
-               {installError && (
-                  <div className="mb-6 p-4 bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-200 rounded-xl text-sm font-bold flex items-center gap-2 justify-center">
-                     <AlertCircle size={18} /> {installError}
-                  </div>
-               )}
-
                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl">
-                     <h4 className="font-bold mb-2 dark:text-white">Windows / Android</h4>
-                     <button onClick={handleInstallClick} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg hover:bg-indigo-500 transition-all active:scale-95">
-                        {deferredPrompt ? 'Install Now' : 'Check Address Bar'}
-                     </button>
+                  <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl flex flex-col">
+                     <h4 className="font-bold mb-4 dark:text-white flex items-center justify-center gap-2"><MonitorDown size={20}/> Windows / Android</h4>
+                     
+                     {/* Smart Install Button Logic */}
+                     {deferredPrompt ? (
+                        <button onClick={handleInstallClick} className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg hover:bg-indigo-500 transition-all active:scale-95 animate-pulse">
+                           Install Now
+                        </button>
+                     ) : (
+                        <div className="text-left bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-200 dark:border-amber-700/50">
+                           <p className="text-xs font-bold text-amber-700 dark:text-amber-400 mb-2 uppercase tracking-wide">Automatic Install Blocked</p>
+                           <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">Your browser is blocking the popup. Please install manually:</p>
+                           <ol className="list-decimal list-inside text-xs font-bold text-slate-700 dark:text-slate-300 space-y-1">
+                              <li>Look at your browser's address bar (top right).</li>
+                              <li>Click the <Download size={12} className="inline mx-1"/> icon.</li>
+                              <li>Select "Install MelodyMatch".</li>
+                           </ol>
+                        </div>
+                     )}
                   </div>
-                  <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl">
-                     <h4 className="font-bold mb-2 dark:text-white">iOS</h4>
-                     <p className="text-xs text-slate-500 dark:text-slate-400">Tap <Share size={10} className="inline"/> Share &gt; Add to Home Screen</p>
+                  
+                  <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl flex flex-col justify-center">
+                     <h4 className="font-bold mb-4 dark:text-white flex items-center justify-center gap-2"><Smartphone size={20}/> iOS / iPadOS</h4>
+                     <div className="space-y-3">
+                        <p className="text-sm text-slate-500 dark:text-slate-400">1. Tap the <Share size={14} className="inline mx-1"/> <strong>Share</strong> button in Safari.</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">2. Scroll down and tap <strong>Add to Home Screen</strong>.</p>
+                     </div>
                   </div>
                </div>
             </div>
