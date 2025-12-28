@@ -1,3 +1,4 @@
+
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Library,
@@ -52,7 +53,9 @@ import {
   Grid,
   Disc,
   Volume2,
-  Gamepad2
+  Gamepad2,
+  X,
+  FastForward
 } from 'lucide-react';
 
 import { GameResult, GameSet, GameSetSong, GameState, Song, Team, Platform } from './types';
@@ -527,37 +530,38 @@ const App: React.FC = () => {
       <audio ref={audioRef} className="hidden" />
 
       {/* Compact Header */}
-      <header className="px-6 py-4 flex justify-between items-center z-50 sticky top-0 backdrop-blur-sm bg-white/30 dark:bg-black/20 border-b border-white/20 dark:border-white/5 h-16 shrink-0">
-        <button onClick={() => setView('home')} className="flex items-center gap-3 group">
-          <div className="p-2 bg-gradient-to-br from-indigo-500 to-fuchsia-600 rounded-xl shadow-lg group-hover:scale-105 transition-transform"><Music size={18} className="text-white"/></div>
-          <span className="font-display text-2xl tracking-normal text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-fuchsia-600 dark:from-indigo-400 dark:to-fuchsia-400 drop-shadow-sm">MELODYMATCH</span>
-        </button>
-        <div className="flex items-center gap-2">
-          <button onClick={toggleTheme} className="p-2 rounded-lg glass-panel text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-white/10 transition-colors">
-            {theme === 'light' ? <Moon size={18} strokeWidth={2.5} /> : <Sun size={18} strokeWidth={2.5} />}
+      {view !== 'game' && (
+        <header className="px-6 py-4 flex justify-between items-center z-50 sticky top-0 backdrop-blur-sm bg-white/30 dark:bg-black/20 border-b border-white/20 dark:border-white/5 h-16 shrink-0">
+          <button onClick={() => setView('home')} className="flex items-center gap-3 group">
+            <div className="p-2 bg-gradient-to-br from-indigo-500 to-fuchsia-600 rounded-xl shadow-lg group-hover:scale-105 transition-transform"><Music size={18} className="text-white"/></div>
+            <span className="font-display text-2xl tracking-normal text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-fuchsia-600 dark:from-indigo-400 dark:to-fuchsia-400 drop-shadow-sm">MELODYMATCH</span>
           </button>
-          {setDraft && view !== 'setBuilder' && (
-            <button onClick={() => setView('setBuilder')} className="px-3 py-2 bg-indigo-600 text-white rounded-lg flex items-center gap-2 font-bold text-[10px] shadow-lg shadow-indigo-500/30 animate-pulse hover:bg-indigo-500 transition-colors uppercase tracking-widest">
-              <Clock size={14} /> Resume
+          <div className="flex items-center gap-2">
+            <button onClick={toggleTheme} className="p-2 rounded-lg glass-panel text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-white/10 transition-colors">
+              {theme === 'light' ? <Moon size={18} strokeWidth={2.5} /> : <Sun size={18} strokeWidth={2.5} />}
             </button>
-          )}
-          <button onClick={() => setView('library')} className={`p-2 rounded-lg transition-all ${view === 'library' ? 'bg-indigo-600 text-white shadow-lg' : 'glass-panel text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-white/10'}`}>
-            <Library size={18} strokeWidth={2.5} />
-          </button>
-          <button onClick={() => setView('history')} className={`p-2 rounded-lg transition-all ${view === 'history' ? 'bg-fuchsia-600 text-white shadow-lg' : 'glass-panel text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-white/10'}`}>
-            <HistoryIcon size={18} strokeWidth={2.5} />
-          </button>
-        </div>
-      </header>
+            {setDraft && view !== 'setBuilder' && (
+              <button onClick={() => setView('setBuilder')} className="px-3 py-2 bg-indigo-600 text-white rounded-lg flex items-center gap-2 font-bold text-[10px] shadow-lg shadow-indigo-500/30 animate-pulse hover:bg-indigo-500 transition-colors uppercase tracking-widest">
+                <Clock size={14} /> Resume
+              </button>
+            )}
+            <button onClick={() => setView('library')} className={`p-2 rounded-lg transition-all ${view === 'library' ? 'bg-indigo-600 text-white shadow-lg' : 'glass-panel text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-white/10'}`}>
+              <Library size={18} strokeWidth={2.5} />
+            </button>
+            <button onClick={() => setView('history')} className={`p-2 rounded-lg transition-all ${view === 'history' ? 'bg-fuchsia-600 text-white shadow-lg' : 'glass-panel text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-white/10'}`}>
+              <HistoryIcon size={18} strokeWidth={2.5} />
+            </button>
+          </div>
+        </header>
+      )}
 
       {/* Main Content Area - constrained to viewport height for home view */}
-      <main className={`flex-grow p-4 md:p-6 z-10 ${view === 'home' || view === 'game' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'}`}>
+      <main className={`flex-grow p-4 md:p-6 z-10 ${view === 'home' || view === 'game' ? 'overflow-hidden flex flex-col p-0 md:p-0' : 'overflow-y-auto'}`}>
         
         {/* HOME VIEW - TITLE SCREEN LAYOUT */}
         {view === 'home' && (
           <div className="w-full h-full max-w-5xl mx-auto animate-in fade-in duration-700 flex flex-col md:flex-row gap-8 items-center justify-center">
-            
-            {/* Left: Main Menu */}
+            {/* ... Same as before ... */}
             <div className="w-full md:w-5/12 space-y-4">
                <div className="mb-8 pl-2">
                  <h1 className="text-5xl md:text-6xl font-display dark:glow-text-neon tracking-normal text-slate-900 dark:text-white leading-[0.9] uppercase">
@@ -600,7 +604,6 @@ const App: React.FC = () => {
                </div>
             </div>
 
-            {/* Right: Stage Preview (Quick Play List) */}
             <div className="w-full md:w-7/12 h-[500px] glass-panel rounded-[2.5rem] p-6 shadow-2xl flex flex-col relative overflow-hidden border border-white/40 dark:border-white/5">
                <div className="flex justify-between items-center mb-6 shrink-0 relative z-10 border-b border-slate-200 dark:border-white/5 pb-4">
                   <h2 className="text-slate-700 dark:text-white font-brand text-lg uppercase tracking-wider flex items-center gap-2">
@@ -636,29 +639,34 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* GAME VIEW - STUDIO LAYOUT */}
+        {/* GAME VIEW - STUDIO TV OVERLAY LAYOUT */}
         {view === 'game' && gameState && (
-          <div className="flex flex-col h-full animate-in fade-in max-w-[1400px] mx-auto w-full relative">
-            
-            {/* Top Bar: Round Info & Scoreboard */}
-            <div className="flex-shrink-0 mb-4 flex flex-col md:flex-row items-center gap-4 justify-between z-20">
-              <div className="bg-white/10 dark:bg-black/30 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/5 flex items-center gap-3">
-                <Disc className={`text-indigo-500 ${isPlaying ? 'animate-spin-slow' : ''}`} size={16} />
-                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
-                  Track {gameState.currentSongIndex + 1} <span className="opacity-50 mx-1">/</span> {activeSet?.songs.length}
-                </span>
+          <div className="flex flex-col h-full animate-in fade-in w-full relative bg-black/40">
+            {/* Absolute Quit Button */}
+            <button onClick={() => { if(confirm("End game?")) { setGameState(null); setView('home'); }}} className="absolute top-4 left-4 z-50 p-3 bg-black/40 rounded-full text-slate-400 hover:text-white hover:bg-rose-500 transition-all">
+               <X size={20} />
+            </button>
+
+            {/* Top Overlay: Scores */}
+            <div className="absolute top-0 inset-x-0 p-4 z-40 flex flex-col items-center pointer-events-none">
+              <div className="pointer-events-auto mb-2">
+                 <Scoreboard teams={gameState.teams} currentTurnIndex={gameState.currentTurnTeamIndex} />
               </div>
-              
-              <Scoreboard teams={gameState.teams} currentTurnIndex={gameState.currentTurnTeamIndex} />
+              <div className="bg-black/40 backdrop-blur-md px-4 py-1 rounded-full border border-white/5 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-300">
+                    On Air • Track {gameState.currentSongIndex + 1}/{activeSet?.songs.length}
+                  </span>
+              </div>
             </div>
 
             {/* Center Stage: The Vinyl Player */}
-            <div className="flex-grow flex items-center justify-center relative py-2 z-10">
+            <div className="flex-grow flex items-center justify-center relative z-10 scale-110 md:scale-125 pb-20">
               {/* Fake Audio Visualizers jumping in background */}
               {isPlaying && (
-                <div className="absolute inset-0 flex items-center justify-center gap-1 opacity-20 pointer-events-none scale-y-150">
-                   {[...Array(20)].map((_, i) => (
-                      <div key={i} className="w-2 bg-indigo-500 rounded-full audio-bar" style={{ animationDuration: `${Math.random() * 500 + 300}ms` }}></div>
+                <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-30 pointer-events-none scale-y-[2]">
+                   {[...Array(24)].map((_, i) => (
+                      <div key={i} className="w-1.5 md:w-3 bg-gradient-to-t from-indigo-500 to-fuchsia-500 rounded-full audio-bar" style={{ animationDuration: `${Math.random() * 500 + 300}ms` }}></div>
                    ))}
                 </div>
               )}
@@ -666,110 +674,103 @@ const App: React.FC = () => {
               <div className="relative group perspective-1000">
                 {/* The Vinyl Disc */}
                 <div className={`
-                  w-[240px] h-[240px] md:w-[320px] md:h-[320px] rounded-full border-[6px] border-slate-800 bg-[#111] shadow-2xl flex items-center justify-center relative z-20 transition-all duration-700
-                  ${isPlaying ? 'animate-spin-slow shadow-[0_0_40px_rgba(99,102,241,0.3)]' : ''}
+                  w-[300px] h-[300px] md:w-[450px] md:h-[450px] rounded-full border-[8px] border-[#1a1a1a] bg-[#111] shadow-2xl flex items-center justify-center relative z-20 transition-all duration-700
+                  ${isPlaying ? 'animate-spin-slow shadow-[0_0_80px_rgba(99,102,241,0.4)]' : 'shadow-2xl'}
                   vinyl-grooves
                 `}>
+                   {/* Reflection */}
+                   <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-white/5 to-transparent pointer-events-none"></div>
+                   
                    {/* Center Label */}
-                   <div className="w-1/3 h-1/3 bg-gradient-to-br from-indigo-500 to-fuchsia-600 rounded-full flex items-center justify-center border-4 border-[#222] shadow-inner relative">
-                      <div className="w-2 h-2 bg-black rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10"></div>
-                      <Music size={32} className="text-white/50" />
+                   <div className="w-1/3 h-1/3 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-full flex items-center justify-center border-4 border-[#222] shadow-inner relative">
+                      <div className="w-3 h-3 bg-black rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 border border-slate-700"></div>
+                      <Music size={40} className="text-white/40" />
                    </div>
                 </div>
 
-                {/* The Sleeve / Reveal Card */}
+                {/* The Sleeve / Reveal Card - Expands from center */}
                 <div className={`
-                  absolute top-0 left-0 w-full h-full bg-white dark:bg-slate-800 rounded-xl shadow-xl flex flex-col items-center justify-center p-6 text-center border border-white/10 transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+                  absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] md:w-[480px] h-[320px] md:h-[480px] 
+                  bg-white dark:bg-slate-900/90 backdrop-blur-xl rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.5)] flex flex-col items-center justify-center p-8 text-center border border-white/20 transition-all duration-500 ease-out
                   ${gameState.isRevealed 
-                    ? 'translate-x-[70%] rotate-6 z-10 opacity-100' 
-                    : 'translate-x-0 rotate-0 z-0 opacity-0 scale-95'}
+                    ? 'scale-100 opacity-100 z-30' 
+                    : 'scale-50 opacity-0 z-0 pointer-events-none'}
                 `}>
-                   {gameState.isRevealed ? (
+                   {gameState.isRevealed && (
                      <>
-                      <Music2 size={48} className="text-indigo-500 mb-2 animate-bounce-small" />
-                      <h2 className="text-xl md:text-2xl font-brand text-slate-800 dark:text-white leading-tight">
+                      <div className="p-4 bg-indigo-500/10 rounded-full mb-4 animate-bounce-small">
+                        <Music2 size={64} className="text-indigo-500" />
+                      </div>
+                      <h2 className="text-2xl md:text-4xl font-brand text-slate-800 dark:text-white leading-tight mb-2">
                         {songs.find(s => s.id === (activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]].songId))?.title}
                       </h2>
-                      <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 mt-2">Correct Answer</p>
+                      <div className="h-1 w-20 bg-indigo-500 rounded-full mx-auto my-4"></div>
+                      <p className="text-xs font-mono uppercase tracking-[0.3em] text-slate-400">Correct Answer</p>
                      </>
-                   ) : null}
+                   )}
                 </div>
               </div>
             </div>
 
-            {/* Bottom: Command Deck (Control Panel) */}
-            <div className="flex-shrink-0 mt-4 z-30 mb-2">
-              <div className="glass-panel rounded-3xl p-4 shadow-2xl border-t border-white/10 relative overflow-hidden">
-                 {/* Glass Reflection */}
-                 <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none"></div>
-
-                 <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
-                    
-                    {/* Audio Triggers (Left Deck) */}
-                    <div className="flex gap-2 w-full md:w-auto justify-center">
-                       {[
-                         { label: 'Intro', color: 'bg-emerald-500', icon: Play, action: () => { const cur = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(cur) playRange(cur.songId, cur.introStart || 0, cur.introEnd || 5); } },
-                         { label: 'Main', color: 'bg-indigo-500', icon: Zap, action: () => { const cur = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(cur) playRange(cur.songId, cur.clipStart, cur.clipEnd); } },
-                         { label: 'Hint', color: 'bg-amber-500', icon: Sparkles, action: () => { const cur = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(cur) playRange(cur.songId, cur.hintStart, cur.hintEnd); } },
-                         { label: 'Bonus', color: 'bg-fuchsia-500', icon: Star, action: () => { const cur = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(cur) playRange(cur.songId, cur.bonusStart || 10, cur.bonusEnd || 15); } },
-                       ].map((btn) => (
-                         <button 
-                           key={btn.label} 
-                           onClick={btn.action}
-                           className="group flex flex-col items-center justify-center gap-1 p-2 md:p-3 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 active:scale-95 transition-all border border-slate-200 dark:border-white/5 min-w-[60px]"
-                         >
-                            <div className={`p-1.5 rounded-full ${btn.color} text-white shadow-lg group-hover:scale-110 transition-transform`}>
-                               <btn.icon size={14} fill="currentColor" />
-                            </div>
-                            <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">{btn.label}</span>
-                         </button>
-                       ))}
-                    </div>
-
-                    {/* Host Controls (Right Deck) */}
-                    <div className="flex gap-3 w-full md:w-auto items-center justify-center bg-black/10 p-1.5 rounded-2xl">
-                       <button 
-                          onClick={() => award(gameState.teams[gameState.currentTurnTeamIndex].id, 2)}
-                          className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-brand text-sm shadow-lg hover:shadow-emerald-500/30 transition-all active:scale-95 uppercase tracking-wide flex items-center gap-2"
-                       >
-                          <CheckCircle size={16} /> Correct
+            {/* Bottom Floating Control Dock */}
+            <div className="absolute bottom-8 left-0 right-0 z-40 flex justify-center">
+              <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-full px-4 py-3 shadow-[0_10px_40px_rgba(0,0,0,0.5)] flex items-center gap-4 transition-all hover:scale-105 duration-300">
+                  
+                  {/* Playback Controls */}
+                  <div className="flex gap-2 border-r border-white/10 pr-4">
+                     {[
+                         { label: 'Intro', color: 'text-emerald-400 bg-emerald-500/10', icon: Play, action: () => { const cur = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(cur) playRange(cur.songId, cur.introStart || 0, cur.introEnd || 5); } },
+                         { label: 'Main', color: 'text-indigo-400 bg-indigo-500/10', icon: Zap, action: () => { const cur = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(cur) playRange(cur.songId, cur.clipStart, cur.clipEnd); } },
+                         { label: 'Hint', color: 'text-amber-400 bg-amber-500/10', icon: Sparkles, action: () => { const cur = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(cur) playRange(cur.songId, cur.hintStart, cur.hintEnd); } },
+                         { label: 'Bonus', color: 'text-fuchsia-400 bg-fuchsia-500/10', icon: Star, action: () => { const cur = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(cur) playRange(cur.songId, cur.bonusStart || 10, cur.bonusEnd || 15); } },
+                     ].map((btn) => (
+                       <button key={btn.label} onClick={btn.action} className={`p-3 rounded-full hover:bg-white/10 transition-colors relative group ${btn.color}`} title={btn.label}>
+                          <btn.icon size={20} fill="currentColor" className="opacity-80 group-hover:opacity-100" />
+                          <span className="absolute -top-8 left-1/2 -translate-x-1/2 text-[9px] font-black uppercase bg-black text-white px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">{btn.label}</span>
                        </button>
-                       
-                       {gameState.isRevealed ? (
-                         <button onClick={nextSong} className="px-5 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-lg transition-all">
-                            Next <SkipForward size={14} />
-                         </button>
-                       ) : (
-                         <div className="flex gap-2">
-                           <button onClick={() => setStealMode(true)} className="px-5 py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-bold uppercase text-[10px] tracking-widest shadow-lg active:scale-95 transition-all">
-                              Wrong
-                           </button>
-                           <button onClick={() => setGameState({...gameState, isRevealed: true})} className="px-3 py-3 bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-300 rounded-xl hover:bg-white hover:text-slate-900 transition-colors">
-                              <SkipForward size={16} />
-                           </button>
-                         </div>
-                       )}
-                    </div>
-                 </div>
+                     ))}
+                  </div>
 
-                 {/* Steal Mode Popup */}
-                 {stealMode && !scoredThisSong && (
-                    <div className="absolute inset-0 bg-slate-900/95 backdrop-blur-sm z-50 flex items-center justify-center animate-in fade-in slide-in-from-bottom-4">
-                       <div className="text-center w-full px-8">
-                          <h4 className="text-rose-500 font-brand text-xl uppercase mb-4 animate-pulse">Steal Chance!</h4>
-                          <div className="flex gap-3 justify-center">
-                             {gameState.teams.map((t, i) => i !== gameState.currentTurnTeamIndex ? (
-                               <button key={t.id} onClick={() => award(t.id, 1)} className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-brand text-sm shadow-xl hover:scale-105 transition-all">
-                                  {t.name} (+1)
-                               </button>
-                             ) : null)}
-                             <button onClick={() => setStealMode(false)} className="px-5 py-3 bg-slate-700 text-slate-300 rounded-2xl font-bold uppercase text-[10px] tracking-widest hover:bg-slate-600">Cancel</button>
-                          </div>
-                       </div>
-                    </div>
-                 )}
+                  {/* Game Flow Controls */}
+                  <div className="flex gap-3 pl-1">
+                      <button onClick={() => award(gameState.teams[gameState.currentTurnTeamIndex].id, 2)} className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-full font-brand text-sm shadow-lg flex items-center gap-2 transition-transform active:scale-95 uppercase tracking-wide">
+                        <CheckCircle size={18} /> Correct
+                      </button>
+                      
+                      {!gameState.isRevealed ? (
+                        <>
+                          <button onClick={() => setStealMode(true)} className="px-6 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-full font-brand text-sm shadow-lg transition-transform active:scale-95 uppercase tracking-wide">
+                            Wrong
+                          </button>
+                          <button onClick={() => setGameState({...gameState, isRevealed: true})} className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-full transition-colors" title="Reveal">
+                             <FastForward size={24} />
+                          </button>
+                        </>
+                      ) : (
+                        <button onClick={nextSong} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full font-brand text-sm shadow-lg flex items-center gap-2 transition-transform active:scale-95 uppercase tracking-wide">
+                           Next Track <SkipForward size={18} />
+                        </button>
+                      )}
+                  </div>
               </div>
             </div>
+
+            {/* Steal Mode Modal (Clean Overlay) */}
+            {stealMode && !scoredThisSong && (
+                <div className="absolute inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center animate-in fade-in">
+                    <div className="text-center">
+                      <h4 className="text-5xl font-brand text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-orange-500 uppercase mb-8 drop-shadow-lg animate-pulse">Steal Chance!</h4>
+                      <div className="flex gap-6 justify-center items-center">
+                          {gameState.teams.map((t, i) => i !== gameState.currentTurnTeamIndex ? (
+                            <button key={t.id} onClick={() => award(t.id, 1)} className="px-10 py-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[2rem] font-brand text-2xl shadow-2xl hover:scale-110 transition-all border-4 border-indigo-400/30">
+                              {t.name} +1
+                            </button>
+                          ) : null)}
+                          <button onClick={() => setStealMode(false)} className="px-8 py-4 text-slate-400 font-bold uppercase text-xs tracking-[0.2em] hover:text-white transition-colors">Cancel</button>
+                      </div>
+                    </div>
+                </div>
+            )}
           </div>
         )}
 
@@ -777,6 +778,7 @@ const App: React.FC = () => {
 
         {view === 'library' && (
           <div className="max-w-7xl mx-auto w-full space-y-8 animate-in slide-in-from-bottom-8 duration-500">
+             {/* ... Library content ... */}
              <div className="flex flex-col md:flex-row justify-between items-end gap-6 bg-gradient-to-r from-indigo-900/80 to-purple-900/80 p-8 rounded-[3rem] text-white shadow-2xl backdrop-blur-xl border border-white/10">
                 <div>
                     <h2 className="text-6xl font-brand mb-2 uppercase text-transparent bg-clip-text bg-gradient-to-b from-white to-indigo-200">Music Vault</h2>
@@ -818,6 +820,7 @@ const App: React.FC = () => {
 
         {view === 'setBuilder' && setDraft && (
            <div className="max-w-7xl mx-auto w-full space-y-8 animate-in fade-in duration-300">
+              {/* ... Set Builder Content ... */}
               <div className="flex flex-col md:flex-row justify-between items-end gap-6 bg-glass p-6 rounded-[2rem]">
                 <div>
                     <h2 className="text-5xl font-brand mb-2 text-slate-900 dark:text-white uppercase drop-shadow-sm">Set Builder</h2>
@@ -862,12 +865,10 @@ const App: React.FC = () => {
                     </div></div>
                  </div>
 
-                 {/* Right Column: Library Picker OR Waveform Editor (Sticky) */}
                  <div className="space-y-8 h-full">
                     {editingSongId && editingSongConfig ? (
                        <div className="sticky top-24 animate-in slide-in-from-right-8 fade-in duration-300 z-20">
                            <div className="p-6 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-[2.5rem] border-2 border-indigo-500 shadow-2xl space-y-6 relative overflow-hidden">
-                              {/* Glowing Accent */}
                               <div className="absolute top-0 right-0 w-48 h-48 bg-fuchsia-500/20 rounded-full blur-[60px] -mr-10 -mt-10 pointer-events-none animate-pulse-slow" />
                               
                               <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/10 pb-4 relative z-10">
@@ -966,6 +967,7 @@ const App: React.FC = () => {
       {/* NEW: Collection Name Modal */}
       {showCollectionModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[200] flex items-center justify-center p-6 animate-in fade-in">
+           {/* ... Modal Content ... */}
            <div className="bg-white dark:bg-slate-900 p-10 rounded-[3rem] border border-slate-200 dark:border-white/10 shadow-3xl text-center space-y-8 max-w-lg w-full relative overflow-hidden">
              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 to-fuchsia-500"></div>
              <div className="p-6 bg-indigo-50 dark:bg-indigo-900/20 rounded-full w-fit mx-auto"><FolderPlus size={40} className="text-indigo-600 dark:text-indigo-400" /></div>
@@ -984,7 +986,8 @@ const App: React.FC = () => {
 
       {isImporting && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-[200] flex items-center justify-center p-6 animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 p-12 rounded-[4rem] border border-slate-200 dark:border-white/10 shadow-3xl text-center space-y-10 max-w-md w-full relative">
+           {/* ... Import Progress ... */}
+           <div className="bg-white dark:bg-slate-900 p-12 rounded-[4rem] border border-slate-200 dark:border-white/10 shadow-3xl text-center space-y-10 max-w-md w-full relative">
             <div className="relative w-40 h-40 mx-auto">
               <svg className="w-full h-full -rotate-90"><circle cx="80" cy="80" r="75" fill="transparent" stroke="currentColor" strokeWidth="10" className="text-slate-100 dark:text-slate-800" /><circle cx="80" cy="80" r="75" fill="transparent" stroke="currentColor" strokeWidth="10" strokeDasharray="471" strokeDashoffset={471 - (4.71 * importProgress)} strokeLinecap="round" className="text-indigo-600 transition-all duration-300" /></svg>
               <div className="absolute inset-0 flex items-center justify-center flex-col"><Music size={48} className="text-indigo-600 animate-pulse mb-1" /><span className="text-xl font-brand text-indigo-600">{importProgress}%</span></div>
@@ -1001,55 +1004,31 @@ const App: React.FC = () => {
 
       {showInstall && (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-6 backdrop-blur-md animate-in fade-in">
-          <div className="max-w-2xl w-full bg-white dark:bg-slate-900 rounded-[4rem] border border-slate-200 dark:border-white/10 p-16 shadow-3xl space-y-10 text-center relative overflow-hidden">
-            {/* Background Accent */}
+           {/* ... Install Modal ... */}
+           <div className="max-w-2xl w-full bg-white dark:bg-slate-900 rounded-[4rem] border border-slate-200 dark:border-white/10 p-16 shadow-3xl space-y-10 text-center relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-fuchsia-500 to-indigo-500"></div>
-
             <div className="p-8 bg-indigo-50 dark:bg-indigo-900/20 rounded-full w-fit mx-auto animate-pulse">
               <Download size={64} className="text-indigo-600 dark:text-indigo-400" />
             </div>
-            
             <div className="space-y-4">
               <h2 className="text-4xl font-brand text-slate-900 dark:text-white uppercase">Install App</h2>
-              <p className="text-slate-600 dark:text-slate-400 text-lg max-w-md mx-auto leading-relaxed">
-                MelodyMatch is a <strong>Progressive Web App (PWA)</strong>. It installs directly from your browser—no app store required.
-              </p>
+              <p className="text-slate-600 dark:text-slate-400 text-lg max-w-md mx-auto leading-relaxed">MelodyMatch is a <strong>Progressive Web App (PWA)</strong>. It installs directly from your browser—no app store required.</p>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* Windows / Android Option */}
               <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-[2rem] border border-slate-200 dark:border-white/10 flex flex-col items-center gap-4">
-                <div className="flex gap-3 text-slate-400">
-                  <Monitor size={24} /> <Smartphone size={24} />
-                </div>
+                <div className="flex gap-3 text-slate-400"><Monitor size={24} /> <Smartphone size={24} /></div>
                 <h3 className="font-bold text-slate-800 dark:text-white uppercase tracking-widest text-sm">Windows & Android</h3>
                 {installError ? (
-                  <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-700/30 rounded-xl text-amber-600 dark:text-amber-400 text-xs font-bold leading-relaxed text-left flex items-start gap-3">
-                     <AlertCircle size={32} className="shrink-0" />
-                     {installError}
-                  </div>
+                  <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-700/30 rounded-xl text-amber-600 dark:text-amber-400 text-xs font-bold leading-relaxed text-left flex items-start gap-3"><AlertCircle size={32} className="shrink-0" />{installError}</div>
                 ) : (
                   <>
-                    <button 
-                      onClick={handleInstallClick} 
-                      className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase transition-colors shadow-lg text-xs tracking-widest flex items-center justify-center gap-2"
-                    >
-                      <Download size={16} /> Install Now
-                    </button>
-                    {!deferredPrompt && (
-                      <p className="text-[10px] text-slate-400 text-center">
-                        If nothing happens, install directly from your browser's address bar.
-                      </p>
-                    )}
+                    <button onClick={handleInstallClick} className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase transition-colors shadow-lg text-xs tracking-widest flex items-center justify-center gap-2"><Download size={16} /> Install Now</button>
+                    {!deferredPrompt && <p className="text-[10px] text-slate-400 text-center">If nothing happens, install directly from your browser's address bar.</p>}
                   </>
                 )}
               </div>
-
-              {/* iOS Option */}
               <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-[2rem] border border-slate-200 dark:border-white/10 flex flex-col items-center gap-4">
-                <div className="flex gap-3 text-slate-400">
-                   <Tablet size={24} />
-                </div>
+                <div className="flex gap-3 text-slate-400"><Tablet size={24} /></div>
                 <h3 className="font-bold text-slate-800 dark:text-white uppercase tracking-widest text-sm">iPad & iPhone</h3>
                 <div className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed space-y-2 text-left w-full">
                    <div className="flex items-center gap-2">1. Open in <strong>Safari</strong>.</div>
@@ -1058,7 +1037,6 @@ const App: React.FC = () => {
                 </div>
               </div>
             </div>
-
             <button onClick={() => { setShowInstall(false); setInstallError(null); }} className="text-slate-400 font-black uppercase text-xs tracking-widest pt-4 hover:text-slate-600 dark:hover:text-slate-200">Dismiss</button>
           </div>
         </div>

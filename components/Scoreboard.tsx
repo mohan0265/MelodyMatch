@@ -10,37 +10,37 @@ interface ScoreboardProps {
 
 const Scoreboard: React.FC<ScoreboardProps> = ({ teams, currentTurnIndex }) => {
   return (
-    <div className="flex justify-center items-center gap-4 w-full px-4 overflow-x-auto custom-scrollbar pb-2">
+    <div className="flex justify-center items-center gap-3 w-full overflow-x-auto no-scrollbar py-2">
       {teams.map((team, idx) => {
         const isTurn = idx === currentTurnIndex;
         return (
           <div 
             key={team.id}
             className={`
-              relative flex items-center gap-4 px-6 py-3 rounded-2xl border transition-all duration-500 min-w-[180px]
+              relative flex items-center gap-3 px-4 py-2 rounded-full border transition-all duration-500
               ${isTurn 
-                ? 'bg-indigo-900/80 border-indigo-400/50 shadow-[0_0_20px_rgba(99,102,241,0.4)] scale-105 z-10' 
-                : 'bg-white/10 border-white/5 opacity-70 scale-95'
+                ? 'bg-indigo-600/90 border-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.5)] z-10 scale-105' 
+                : 'bg-black/40 border-white/10 text-slate-400 scale-95'
               }
             `}
           >
-            {/* Active Indicator Dot */}
+            {/* Turn Indicator Dot */}
             {isTurn && (
-              <span className="absolute -top-1 -right-1 flex h-3 w-3">
+              <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-400"></span>
               </span>
             )}
 
-            <div className={`p-2 rounded-xl ${isTurn ? 'bg-indigo-500 text-white' : 'bg-white/5 text-slate-400'}`}>
-              {isTurn ? <Mic2 size={18} className="animate-pulse" /> : <Trophy size={18} />}
+            <div className={`flex items-center justify-center w-6 h-6 rounded-full ${isTurn ? 'bg-white/20 text-white' : 'bg-white/5 text-slate-500'}`}>
+              {isTurn ? <Mic2 size={12} className="animate-pulse" /> : <Trophy size={12} />}
             </div>
             
-            <div className="flex flex-col">
-              <span className={`text-[10px] font-black uppercase tracking-wider ${isTurn ? 'text-indigo-200' : 'text-slate-500 dark:text-slate-400'}`}>
+            <div className="flex flex-col leading-none pr-1">
+              <span className={`text-[9px] font-black uppercase tracking-wider mb-0.5 ${isTurn ? 'text-indigo-100' : 'text-slate-500'}`}>
                 {team.name}
               </span>
-              <span className={`text-2xl font-brand leading-none ${isTurn ? 'text-white' : 'text-slate-300'}`}>
+              <span className={`text-xl font-brand ${isTurn ? 'text-white' : 'text-slate-400'}`}>
                 {team.score}
               </span>
             </div>
