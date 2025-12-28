@@ -61,7 +61,11 @@ import {
   ListMusic,
   RotateCcw,
   Repeat,
-  MonitorDown
+  MonitorDown,
+  MoreVertical,
+  Wifi,
+  WifiOff,
+  Filter
 } from 'lucide-react';
 
 import { GameResult, GameSet, GameSetSong, GameState, Song, Team, Platform } from './types';
@@ -144,12 +148,17 @@ const App: React.FC = () => {
   const [sets, setSets] = useState<GameSet[]>([]);
   const [history, setHistory] = useState<GameResult[]>([]);
   const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('mm_theme') as Theme) || 'dark');
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   const [librarySearch, setLibrarySearch] = useState('');
   const [setDraft, setSetDraft] = useState<GameSet | null>(null);
   const [editingSongId, setEditingSongId] = useState<string | null>(null);
   const [selectedPickerIds, setSelectedPickerIds] = useState<Set<string>>(new Set());
   
+  // Library Management State
+  const [activeLibraryTab, setActiveLibraryTab] = useState<string>('All');
+  const [builderLibraryFilter, setBuilderLibraryFilter] = useState<string>('All');
+
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const [importingFileName, setImportingFileName] = useState('');
@@ -183,6 +192,18 @@ const App: React.FC = () => {
     root.classList.add(theme);
     localStorage.setItem('mm_theme', theme);
   }, [theme]);
+
+  // Network Status Listeners
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Handle Install Prompt Logic
   useEffect(() => {
@@ -254,11 +275,26 @@ const App: React.FC = () => {
 
   const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
 
+  // Computed Categories (Libraries)
+  const libraryCategories = useMemo(() => {
+    const cats = new Set(songs.map(s => s.category || 'General'));
+    return ['All', ...Array.from(cats).sort()];
+  }, [songs]);
+
   const filteredSongs = useMemo(() => {
     const q = librarySearch.trim().toLowerCase();
-    if (!q) return songs;
-    return songs.filter((s) => (s.title + ' ' + s.filename + ' ' + (s.category || '')).toLowerCase().includes(q));
-  }, [songs, librarySearch]);
+    
+    // Apply Category Filter first
+    let result = activeLibraryTab === 'All' 
+        ? songs 
+        : songs.filter(s => (s.category || 'General') === activeLibraryTab);
+
+    // Apply Search Filter
+    if (q) {
+        result = result.filter((s) => (s.title + ' ' + s.filename).toLowerCase().includes(q));
+    }
+    return result;
+  }, [songs, librarySearch, activeLibraryTab]);
 
   const stopAudio = () => {
     if (stopTimerRef.current) { window.clearTimeout(stopTimerRef.current); stopTimerRef.current = null; }
@@ -375,8 +411,19 @@ const App: React.FC = () => {
   };
 
   const toggleSelectAll = () => {
-    const visibleIds = filteredSongs.filter(s => !setDraft?.songs.some(gs => gs.songId === s.id)).map(s => s.id);
-    if (selectedPickerIds.size === visibleIds.length && visibleIds.length > 0) { setSelectedPickerIds(new Set()); } else { setSelectedPickerIds(new Set(visibleIds)); }
+    // Filter by builderLibraryFilter if set
+    const candidates = songs.filter(s => (builderLibraryFilter === 'All' || (s.category || 'General') === builderLibraryFilter));
+    // Further filter by text search if any
+    const q = librarySearch.trim().toLowerCase();
+    const visibleSongs = candidates.filter(s => !q || (s.title + ' ' + s.filename).toLowerCase().includes(q));
+
+    const visibleIds = visibleSongs.filter(s => !setDraft?.songs.some(gs => gs.songId === s.id)).map(s => s.id);
+    
+    if (selectedPickerIds.size === visibleIds.length && visibleIds.length > 0) { 
+        setSelectedPickerIds(new Set()); 
+    } else { 
+        setSelectedPickerIds(new Set(visibleIds)); 
+    }
   };
 
   const toggleSongSelection = (id: string) => { const next = new Set(selectedPickerIds); if (next.has(id)) next.delete(id); else next.add(id); setSelectedPickerIds(next); };
@@ -500,7 +547,6 @@ const App: React.FC = () => {
       if(gameState) setGameState({...gameState, isRevealed: true});
   };
 
-  const collections = useMemo(() => Array.from(new Set(songs.map(s => s.category || 'General'))).sort(), [songs]);
   const editingSongConfig = useMemo(() => { if (!editingSongId || !setDraft) return null; return setDraft.songs.find(s => s.songId === editingSongId); }, [editingSongId, setDraft]);
 
   return (
@@ -521,6 +567,12 @@ const App: React.FC = () => {
                 <Clock size={14} /> Resume Draft
               </button>
             )}
+            
+            {/* Network Status Indicator */}
+            <div className={`p-2.5 rounded-xl transition-all ${isOnline ? 'text-emerald-500/50 dark:text-emerald-400/50' : 'bg-rose-100 dark:bg-rose-900/30 text-rose-500 shadow-sm animate-pulse'}`} title={isOnline ? 'Online Mode' : 'Offline Mode Active'}>
+                {isOnline ? <Wifi size={20} /> : <WifiOff size={20} />}
+            </div>
+
             <button onClick={toggleTheme} className="p-2.5 rounded-xl glass-panel text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-white/10 transition-colors shadow-sm"><Sun size={20} className="hidden dark:block" /><Moon size={20} className="block dark:hidden" /></button>
             <button onClick={() => setView('library')} className={`p-2.5 rounded-xl transition-all ${view === 'library' ? 'bg-indigo-600 text-white shadow-lg' : 'glass-panel text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-white/10'}`}><Library size={20} /></button>
             <button onClick={() => setView('history')} className={`p-2.5 rounded-xl transition-all ${view === 'history' ? 'bg-fuchsia-600 text-white shadow-lg' : 'glass-panel text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-white/10'}`}><HistoryIcon size={20} /></button>
@@ -531,7 +583,7 @@ const App: React.FC = () => {
       {/* Main Content */}
       <main className={`flex-grow z-10 ${view === 'home' || view === 'game' ? 'overflow-hidden flex flex-col p-0' : 'overflow-y-auto p-6 md:p-8'}`}>
         
-        {/* HOME VIEW - RESPONSIVE 12-COL GRID */}
+        {/* HOME VIEW */}
         {view === 'home' && (
           <div className="h-full w-full flex items-center justify-center p-4 lg:p-8 animate-in fade-in duration-700">
             <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 h-full lg:h-auto items-center">
@@ -549,7 +601,7 @@ const App: React.FC = () => {
                    </div>
                  </div>
 
-                 {/* Action Grid - 2x2 Layout */}
+                 {/* Action Grid */}
                  <div className="grid grid-cols-2 gap-4 w-full max-w-2xl mx-auto lg:mx-0">
                     <HomeActionButton 
                        label="Game Builder" 
@@ -581,7 +633,7 @@ const App: React.FC = () => {
                     />
                  </div>
                  
-                 {/* Install App Button - Visible if NOT installed/standalone */}
+                 {/* Install App Button */}
                  {!isStandalone && (
                     <div className="w-full max-w-2xl mx-auto lg:mx-0 mt-8">
                         <button onClick={() => setShowInstall(true)} className="w-full text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-indigo-500 flex items-center justify-center gap-2 p-4 bg-white/50 dark:bg-white/5 rounded-xl border border-white/20 hover:border-indigo-200 transition-all hover:scale-[1.01] active:scale-95">
@@ -591,7 +643,7 @@ const App: React.FC = () => {
                  )}
               </div>
 
-              {/* Right Col: Quick Play Stage */}
+              {/* Right Col: Quick Play */}
               <div className="lg:col-span-5 h-[500px] lg:h-[650px] relative w-full">
                  <div className="absolute inset-0 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-[3rem] shadow-2xl border border-white/40 dark:border-white/10 flex flex-col overflow-hidden">
                     <div className="p-8 border-b border-slate-200/50 dark:border-white/5 flex justify-between items-center bg-white/40 dark:bg-white/5">
@@ -633,12 +685,11 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* GAME VIEW - NO CONTAINERS (PURE OVERLAY) */}
+        {/* GAME VIEW */}
         {view === 'game' && gameState && activeSet && (
           <div className="absolute inset-0 z-50 flex flex-col items-center justify-center overflow-hidden">
-            
-            {/* Top Right Quit */}
-            <button onClick={() => { if(confirm("End game?")) { setGameState(null); setView('home'); }}} className="absolute top-6 left-6 z-50 p-4 bg-black/20 hover:bg-rose-600/80 backdrop-blur-md rounded-full text-white/50 hover:text-white transition-all group">
+             {/* ... Game View Content (Unchanged) ... */}
+             <button onClick={() => { if(confirm("End game?")) { setGameState(null); setView('home'); }}} className="absolute top-6 left-6 z-50 p-4 bg-black/20 hover:bg-rose-600/80 backdrop-blur-md rounded-full text-white/50 hover:text-white transition-all group">
                <X size={24} />
                <span className="absolute left-full ml-3 top-1/2 -translate-y-1/2 bg-black/80 text-white text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">QUIT</span>
             </button>
@@ -659,9 +710,7 @@ const App: React.FC = () => {
                   {activeSet.songs.map((_, idx) => {
                      const isCurrent = idx === gameState.currentSongIndex;
                      const isPast = idx < gameState.currentSongIndex;
-                     const isFuture = idx > gameState.currentSongIndex;
-                     
-                     // Get song details if past/revealed
+                     // const isFuture = idx > gameState.currentSongIndex;
                      const songData = songs.find(s => s.id === activeSet.songs[gameState.shuffledIndices[idx]].songId);
                      
                      return (
@@ -707,21 +756,17 @@ const App: React.FC = () => {
                </div>
             </div>
 
-            {/* Bottom Controls (Floating Island) - Highest Z-Index to stay clickable */}
+            {/* Bottom Controls */}
             <div className="absolute bottom-10 z-[70]">
                <div className="flex items-center gap-2 p-2 rounded-full bg-black/60 dark:bg-slate-900/80 backdrop-blur-2xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
-                  
-                  {/* UNDO BUTTON (History) - Visible only if there's history */}
                   {gameHistoryStack.length > 0 && (
                     <div className="border-r border-white/10 pr-2 mr-1">
                       <button onClick={performUndo} className="w-12 h-12 rounded-full flex items-center justify-center bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-all active:scale-95 group relative">
                          <RotateCcw size={18} />
-                         <span className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 bg-black text-white text-[9px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Undo Action</span>
                       </button>
                     </div>
                   )}
 
-                  {/* Audio Regions */}
                   <div className="flex gap-1 pr-4 border-r border-white/10">
                      {[
                        { l: 'INT', i: Play, c: 'bg-emerald-500 text-white', fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) toggleSegment(s.songId, 'intro', s.introStart||0, s.introEnd||5); } },
@@ -729,7 +774,7 @@ const App: React.FC = () => {
                        { l: 'HINT', i: Sparkles, c: 'bg-amber-500 text-white', fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) toggleSegment(s.songId, 'hint', s.hintStart, s.hintEnd); } },
                        { l: 'BONUS', i: Star, c: 'bg-fuchsia-500 text-white', fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) toggleSegment(s.songId, 'bonus', s.bonusStart||10, s.bonusEnd||15); } },
                      ].map((b, idx) => {
-                       const isActive = currentSegment === ['intro','main','hint','bonus'][idx]; // Simplified match for demo
+                       const isActive = currentSegment === ['intro','main','hint','bonus'][idx]; 
                        return (
                          <button key={b.l} onClick={b.fn} className={`w-12 h-12 rounded-full flex items-center justify-center hover:scale-110 transition-all ${b.c} ${isActive && isPlaying ? 'ring-4 ring-white/30 animate-pulse' : ''}`} title={b.l}>
                             {isActive && isPlaying ? <Pause size={18} fill="currentColor"/> : <b.i size={18} fill="currentColor"/>}
@@ -738,12 +783,10 @@ const App: React.FC = () => {
                      })}
                   </div>
 
-                  {/* Host Actions */}
                   <div className="flex gap-2 pl-2">
                      <button onClick={() => award(gameState.teams[gameState.currentTurnTeamIndex].id, 2)} className="px-6 h-12 bg-emerald-600 hover:bg-emerald-500 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg flex items-center gap-2 hover:-translate-y-0.5 transition-all">
                         <CheckCircle size={18} /> Correct
                      </button>
-                     
                      {!gameState.isRevealed ? (
                        <>
                          <button onClick={triggerStealMode} className="px-6 h-12 bg-rose-600 hover:bg-rose-500 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg hover:-translate-y-0.5 transition-all">Wrong</button>
@@ -758,7 +801,7 @@ const App: React.FC = () => {
                </div>
             </div>
 
-            {/* Overlay Modals (Steal) - Z-Index 60 to sit BEHIND controls (Z-70) but above Vinyl (Z-10) */}
+            {/* Steal Modal */}
             {stealMode && !scoredThisSong && (
                 <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-md flex items-center justify-center animate-in fade-in duration-200 pointer-events-none">
                    <div className="text-center w-full max-w-4xl px-4 pointer-events-auto pb-32 flex flex-col items-center">
@@ -780,49 +823,89 @@ const App: React.FC = () => {
                            </div>
                          ) : null)}
                       </div>
-
-                      <button onClick={() => { pushToHistory(); setStealMode(false); }} className="text-slate-500 hover:text-white font-bold uppercase tracking-[0.2em] text-xs mt-12 px-6 py-3 rounded-xl hover:bg-white/5 transition-colors">
-                        Skip Steal
-                      </button>
+                      <button onClick={() => { pushToHistory(); setStealMode(false); }} className="text-slate-500 hover:text-white font-bold uppercase tracking-[0.2em] text-xs mt-12 px-6 py-3 rounded-xl hover:bg-white/5 transition-colors">Skip Steal</button>
                    </div>
                 </div>
             )}
           </div>
         )}
 
-        {/* Other Views Container (Standard Padding) */}
+        {/* Other Views Container */}
         {(view !== 'home' && view !== 'game') && (
            <div className="max-w-7xl mx-auto w-full animate-in fade-in duration-500">
+              
               {view === 'library' && (
                 /* Compact Library View */
                 <div className="space-y-6">
-                   {/* ... Keep library code logic, just styling tweaks handled by global layout ... */}
-                   <div className="flex flex-col md:flex-row justify-between items-end gap-6 bg-gradient-to-r from-indigo-900/80 to-purple-900/80 p-8 rounded-[3rem] text-white shadow-2xl backdrop-blur-xl border border-white/10">
-                      <div><h2 className="text-6xl font-brand mb-2 text-white">Library</h2><p className="font-mono text-sm tracking-widest uppercase opacity-70 border-l-4 border-fuchsia-500 pl-4">{songs.length} Tracks</p></div>
+                   <div className="flex flex-col md:flex-row justify-between items-end gap-6 bg-gradient-to-r from-indigo-900/80 to-purple-900/80 p-8 rounded-[3rem] text-white shadow-2xl backdrop-blur-xl border border-white/10 relative overflow-hidden">
+                      {/* Back Button */}
+                      <button onClick={() => setView('home')} className="absolute top-8 left-8 p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-colors backdrop-blur-md">
+                        <ArrowLeft size={20} className="text-white" />
+                      </button>
+
+                      <div className="pl-16">
+                        <h2 className="text-6xl font-brand mb-2 text-white">Library</h2>
+                        <p className="font-mono text-sm tracking-widest uppercase opacity-70 border-l-4 border-fuchsia-500 pl-4">
+                          {activeLibraryTab === 'All' ? songs.length : filteredSongs.length} Tracks
+                        </p>
+                      </div>
                       <div className="flex gap-3">
-                        <button onClick={handleImportClick} className="px-6 py-3 bg-fuchsia-600 rounded-xl font-bold flex items-center gap-2 text-white text-xs uppercase tracking-widest"><FolderPlus size={16}/> Import</button>
-                        <button onClick={relinkLibrary} className="px-6 py-3 bg-indigo-600 rounded-xl font-bold flex items-center gap-2 text-white text-xs uppercase tracking-widest"><Link2 size={16}/> Link</button>
+                        <button onClick={handleImportClick} className="px-6 py-3 bg-fuchsia-600 rounded-xl font-bold flex items-center gap-2 text-white text-xs uppercase tracking-widest hover:bg-fuchsia-500 transition-colors shadow-lg shadow-fuchsia-900/50"><FolderPlus size={16}/> Import</button>
+                        <button onClick={relinkLibrary} className="px-6 py-3 bg-indigo-600 rounded-xl font-bold flex items-center gap-2 text-white text-xs uppercase tracking-widest hover:bg-indigo-500 transition-colors shadow-lg shadow-indigo-900/50"><Link2 size={16}/> Link</button>
                       </div>
                    </div>
-                   <div className="relative"><Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input className="w-full glass-panel rounded-full py-4 pl-14 pr-6 text-lg outline-none text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 ring-indigo-500/50 transition-all" placeholder="Search..." value={librarySearch} onChange={e => setLibrarySearch(e.target.value)} /></div>
+
+                   {/* Library Tabs (Pills) */}
+                   <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar px-2">
+                     {libraryCategories.map(cat => (
+                       <button
+                         key={cat}
+                         onClick={() => setActiveLibraryTab(cat)}
+                         className={`whitespace-nowrap px-6 py-2 rounded-full font-bold text-xs uppercase tracking-wider transition-all border ${
+                           activeLibraryTab === cat
+                             ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg scale-105'
+                             : 'bg-white/50 dark:bg-black/20 text-slate-600 dark:text-slate-400 border-transparent hover:bg-white dark:hover:bg-white/10'
+                         }`}
+                       >
+                         {cat}
+                       </button>
+                     ))}
+                   </div>
+
+                   <div className="relative"><Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input className="w-full glass-panel rounded-full py-4 pl-14 pr-6 text-lg outline-none text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 ring-indigo-500/50 transition-all" placeholder={`Search ${activeLibraryTab}...`} value={librarySearch} onChange={e => setLibrarySearch(e.target.value)} /></div>
                    <div className="glass-panel rounded-[2rem] overflow-hidden">
                      <div className="max-h-[60vh] overflow-y-auto custom-scrollbar">
                        <table className="w-full text-left">
                           <tbody className="divide-y divide-slate-200/50 dark:divide-white/5">
-                            {filteredSongs.map(s => (
-                              <tr key={s.id} className="hover:bg-indigo-500/5 transition-colors group">
-                                <td className="p-6"><p className="font-bold text-slate-800 dark:text-white">{s.title}</p><p className="text-xs font-mono text-slate-500">{s.filename}</p></td>
-                                <td className="p-6 text-right"><div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => togglePlay(s.id)} className="p-2 bg-slate-200 dark:bg-white/10 rounded-lg hover:bg-indigo-500 hover:text-white transition-colors"><Play size={16}/></button><button onClick={() => handleDeleteSong(s.id)} className="p-2 bg-rose-100 dark:bg-rose-900/20 text-rose-500 rounded-lg hover:bg-rose-600 hover:text-white transition-colors"><Trash2 size={16}/></button></div></td>
-                              </tr>
-                            ))}
+                            {filteredSongs.length === 0 ? (
+                               <tr><td colSpan={2} className="p-12 text-center text-slate-400 font-mono uppercase tracking-widest">No tracks found in "{activeLibraryTab}"</td></tr>
+                            ) : (
+                                filteredSongs.map(s => (
+                                <tr key={s.id} className="hover:bg-indigo-500/5 transition-colors group">
+                                    <td className="p-6">
+                                        <div className="flex items-center gap-3">
+                                            <div>
+                                                <p className="font-bold text-slate-800 dark:text-white">{s.title}</p>
+                                                <div className="flex gap-2 text-xs">
+                                                    <span className="font-mono text-slate-500">{s.filename}</span>
+                                                    {s.category && <span className="px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-bold uppercase text-[9px] tracking-wide">{s.category}</span>}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="p-6 text-right"><div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => togglePlay(s.id)} className="p-2 bg-slate-200 dark:bg-white/10 rounded-lg hover:bg-indigo-500 hover:text-white transition-colors"><Play size={16}/></button><button onClick={() => handleDeleteSong(s.id)} className="p-2 bg-rose-100 dark:bg-rose-900/20 text-rose-500 rounded-lg hover:bg-rose-600 hover:text-white transition-colors"><Trash2 size={16}/></button></div></td>
+                                </tr>
+                                ))
+                            )}
                           </tbody>
                        </table>
                      </div>
                    </div>
                 </div>
               )}
+
               {view === 'setBuilder' && setDraft && (
-                 /* ... Set Builder Logic (Keep functionality, ensure wrapper styles match) ... */
+                 /* ... Set Builder Logic ... */
                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-[calc(100vh-140px)]">
                     <div className="flex flex-col gap-6 h-full overflow-hidden">
                        <div className="glass-panel p-6 rounded-[2rem] space-y-4 shrink-0">
@@ -856,18 +939,51 @@ const App: React.FC = () => {
                        ) : (
                           <div className="glass-panel p-6 rounded-[2rem] h-full flex flex-col">
                              <div className="flex justify-between items-center mb-4"><h3 className="font-brand text-lg dark:text-white">Add Tracks</h3><button onClick={toggleSelectAll} className="text-[10px] font-bold uppercase bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 px-3 py-1 rounded-lg">Select All</button></div>
-                             <input className="w-full bg-slate-100 dark:bg-black/20 rounded-xl py-3 px-4 mb-4 text-sm outline-none" placeholder="Search library..." value={librarySearch} onChange={e => setLibrarySearch(e.target.value)} />
+                             
+                             {/* Library Filter Dropdown */}
+                             <div className="mb-4 flex gap-2">
+                                <div className="relative w-1/3">
+                                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                        <Filter size={14} className="text-slate-500" />
+                                    </div>
+                                    <select 
+                                        value={builderLibraryFilter}
+                                        onChange={(e) => setBuilderLibraryFilter(e.target.value)}
+                                        className="w-full bg-slate-100 dark:bg-black/20 text-slate-700 dark:text-slate-300 rounded-xl py-3 pl-10 pr-4 text-xs font-bold uppercase tracking-wide appearance-none outline-none focus:ring-2 ring-indigo-500/50 cursor-pointer"
+                                    >
+                                        {libraryCategories.map(cat => (
+                                            <option key={cat} value={cat}>{cat} Tracks</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <input className="w-2/3 bg-slate-100 dark:bg-black/20 rounded-xl py-3 px-4 text-sm outline-none" placeholder="Search song name..." value={librarySearch} onChange={e => setLibrarySearch(e.target.value)} />
+                             </div>
+
                              <div className="flex-grow overflow-y-auto space-y-2 custom-scrollbar pr-2">
-                                {filteredSongs.map(s => {
-                                   const inSet = setDraft.songs.some(x => x.songId === s.id);
-                                   const sel = selectedPickerIds.has(s.id);
-                                   return (
-                                      <div key={s.id} onClick={() => !inSet && toggleSongSelection(s.id)} className={`p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition-all ${inSet ? 'opacity-40' : sel ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-500' : 'border-transparent hover:bg-slate-50 dark:hover:bg-white/5'}`}>
-                                         {sel ? <CheckSquare size={18} className="text-indigo-500"/> : <Square size={18} className="text-slate-400"/>}
-                                         <div className="truncate text-sm font-bold dark:text-white">{s.title}</div>
-                                      </div>
-                                   )
-                                })}
+                                {filteredSongs.length === 0 ? (
+                                    <div className="text-center py-8 text-slate-400 text-xs uppercase tracking-widest">No matching songs found</div>
+                                ) : (
+                                    filteredSongs.map(s => {
+                                        // Only show songs that match the builder library filter
+                                        if (builderLibraryFilter !== 'All' && (s.category || 'General') !== builderLibraryFilter) return null;
+
+                                        const inSet = setDraft.songs.some(x => x.songId === s.id);
+                                        const sel = selectedPickerIds.has(s.id);
+                                        return (
+                                            <div key={s.id} onClick={() => !inSet && toggleSongSelection(s.id)} className={`p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition-all ${inSet ? 'opacity-40' : sel ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-500' : 'border-transparent hover:bg-slate-50 dark:hover:bg-white/5'}`}>
+                                                {sel ? <CheckSquare size={18} className="text-indigo-500"/> : <Square size={18} className="text-slate-400"/>}
+                                                <div className="overflow-hidden">
+                                                    <div className="truncate text-sm font-bold dark:text-white">{s.title}</div>
+                                                    <div className="text-[10px] text-slate-500 flex items-center gap-2">
+                                                        <span>{s.category || 'General'}</span>
+                                                        <span>•</span>
+                                                        <span className="truncate">{s.filename}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )
+                                    })
+                                )}
                              </div>
                              {selectedPickerIds.size > 0 && <button onClick={addSelectedToSet} className="w-full mt-4 py-3 bg-indigo-600 text-white rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg hover:bg-indigo-500 transition-colors">Add {selectedPickerIds.size}</button>}
                           </div>
@@ -896,12 +1012,13 @@ const App: React.FC = () => {
         )}
       </main>
 
-      {/* Modals (Import / Install) - Kept mostly same but ensured z-index higher */}
+      {/* Modals ... (Unchanged) ... */}
       {showCollectionModal && (
         <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
            <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] w-full max-w-md text-center space-y-6">
               <FolderPlus size={48} className="mx-auto text-indigo-500" />
-              <h3 className="text-2xl font-brand dark:text-white">Group Tracks</h3>
+              <h3 className="text-2xl font-brand dark:text-white">Name Your Library</h3>
+              <p className="text-slate-500 text-sm">Create a new library (e.g., "Ilaiyaraja", "90s Hits") or type an existing name to add to it.</p>
               <input autoFocus className="w-full bg-slate-100 dark:bg-black/40 p-4 rounded-xl text-center text-lg font-bold outline-none border-2 border-transparent focus:border-indigo-500" placeholder="Collection Name" value={collectionNameInput} onChange={e => setCollectionNameInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && confirmImport()} />
               <div className="grid grid-cols-2 gap-4"><button onClick={() => setShowCollectionModal(false)} className="py-3 bg-slate-200 dark:bg-white/10 rounded-xl font-bold text-slate-600 dark:text-slate-300">Cancel</button><button onClick={confirmImport} className="py-3 bg-indigo-600 text-white rounded-xl font-bold">Import</button></div>
            </div>
@@ -936,11 +1053,11 @@ const App: React.FC = () => {
                         </button>
                      ) : (
                         <div className="text-left bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-200 dark:border-amber-700/50">
-                           <p className="text-xs font-bold text-amber-700 dark:text-amber-400 mb-2 uppercase tracking-wide">Automatic Install Blocked</p>
-                           <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">Your browser is blocking the popup. Please install manually:</p>
+                           <p className="text-xs font-bold text-amber-700 dark:text-amber-400 mb-2 uppercase tracking-wide">Manual Install Required</p>
+                           <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">Browser icon missing? Try this:</p>
                            <ol className="list-decimal list-inside text-xs font-bold text-slate-700 dark:text-slate-300 space-y-1">
-                              <li>Look at your browser's address bar (top right).</li>
-                              <li>Click the <Download size={12} className="inline mx-1"/> icon.</li>
+                              <li>Click the <MoreVertical size={12} className="inline mx-1"/> menu (top right).</li>
+                              <li>Hover over <strong>Apps</strong>.</li>
                               <li>Select "Install MelodyMatch".</li>
                            </ol>
                         </div>
