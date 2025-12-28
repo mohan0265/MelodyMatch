@@ -3,7 +3,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>MelodyMatch</title>
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#4f46e5" />
@@ -44,12 +44,19 @@
               'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
               'spin-slow': 'spin 8s linear infinite',
               'spin-super-slow': 'spin 12s linear infinite',
-              'bounce-small': 'bounce-small 1s infinite'
+              'bounce-small': 'bounce-small 1s infinite',
+              'blob': 'blob 7s infinite'
             },
             keyframes: {
               'bounce-small': {
                 '0%, 100%': { transform: 'translateY(-5%)', animationTimingFunction: 'cubic-bezier(0.8, 0, 1, 1)' },
                 '50%': { transform: 'translateY(0)', animationTimingFunction: 'cubic-bezier(0, 0, 0.2, 1)' },
+              },
+              'blob': {
+                '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                '100%': { transform: 'translate(0px, 0px) scale(1)' },
               }
             }
           }
@@ -64,58 +71,43 @@
         -webkit-tap-highlight-color: transparent;
       }
       
-      /* Mesh Gradients */
+      /* Enhanced Mesh Gradients */
       .bg-mesh-dark {
-        background-color: #0f172a;
+        background-color: #020617; /* Very dark slate */
         background-image: 
           radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
-          radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
-          radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
+          radial-gradient(at 50% 0%, hsla(265, 83%, 15%, 0.4) 0, transparent 50%), 
+          radial-gradient(at 100% 100%, hsla(339, 49%, 20%, 0.5) 0, transparent 50%);
       }
+      
       .bg-mesh-light {
-        background-color: #f8fafc;
+        background-color: #f8fafc; /* Crisp white/slate */
         background-image: 
-          radial-gradient(at 0% 0%, hsla(215,100%,96%,1) 0, transparent 50%), 
-          radial-gradient(at 50% 0%, hsla(258,100%,94%,1) 0, transparent 50%), 
-          radial-gradient(at 100% 0%, hsla(342,100%,96%,1) 0, transparent 50%);
+          radial-gradient(at 0% 0%, hsla(215, 100%, 96%, 1) 0, transparent 50%), 
+          radial-gradient(at 50% 100%, hsla(258, 100%, 94%, 1) 0, transparent 50%), 
+          radial-gradient(at 100% 0%, hsla(342, 100%, 96%, 1) 0, transparent 50%);
       }
 
       /* Glassmorphism Classes */
       .glass-panel {
-        background: rgba(255, 255, 255, 0.7);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
+        background: rgba(255, 255, 255, 0.65);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
         border: 1px solid rgba(255, 255, 255, 0.5);
       }
       .dark .glass-panel {
-        background: rgba(15, 23, 42, 0.6);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(15, 23, 42, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.08);
       }
       
-      .glass-card {
-        background: rgba(255, 255, 255, 0.8);
-        backdrop-filter: blur(8px);
-        border: 1px solid rgba(255, 255, 255, 0.6);
-        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-      }
-      .dark .glass-card {
-        background: rgba(30, 41, 59, 0.4);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
-      }
-
       /* Typography Effects */
-      .glow-text {
-        text-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
+      .font-outline-2 {
+        -webkit-text-stroke: 2px currentColor;
+        color: transparent;
       }
-      .dark .glow-text-neon {
-        color: #fff;
-        text-shadow: 
-          0 0 7px #fff,
-          0 0 10px #fff,
-          0 0 21px #fff,
-          0 0 42px #6366f1,
-          0 0 82px #6366f1;
+      .font-outline-4 {
+        -webkit-text-stroke: 4px currentColor;
+        color: transparent;
       }
       
       /* Musical Notes Animation */
@@ -139,26 +131,20 @@
           repeating-radial-gradient(
             #111 0, 
             #111 2px, 
-            #222 3px, 
-            #222 4px
+            #1a1a1a 3px, 
+            #1a1a1a 4px
           );
       }
 
-      /* Audio Bars Animation */
-      .audio-bar {
-        animation: sound 0ms -800ms linear infinite alternate;
-      }
-      @keyframes sound {
-        0% { height: 3px; opacity: 0.35; }
-        100% { height: 100%; opacity: 1; }
-      }
-
       /* Scrollbars */
-      ::-webkit-scrollbar { width: 8px; }
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      
+      ::-webkit-scrollbar { width: 6px; }
       ::-webkit-scrollbar-track { background: transparent; }
       .dark ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.5); }
-      ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
-      .dark ::-webkit-scrollbar-thumb { background: #475569; }
+      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+      .dark ::-webkit-scrollbar-thumb { background: #334155; }
     </style>
   <script type="importmap">
 {

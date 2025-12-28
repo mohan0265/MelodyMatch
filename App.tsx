@@ -55,7 +55,8 @@ import {
   Volume2,
   Gamepad2,
   X,
-  FastForward
+  FastForward,
+  PlayCircle
 } from 'lucide-react';
 
 import { GameResult, GameSet, GameSetSong, GameState, Song, Team, Platform } from './types';
@@ -90,67 +91,45 @@ const getAudioDuration = (blob: Blob): Promise<number> =>
     const audio = document.createElement('audio');
     audio.preload = 'metadata';
     const url = URL.createObjectURL(blob);
-    
-    // Safety timeout - if browser can't decode, return 0
-    const timeout = setTimeout(() => {
-      audio.src = '';
-      URL.revokeObjectURL(url);
-      resolve(0);
-    }, 2000); 
-
+    const timeout = setTimeout(() => { audio.src = ''; URL.revokeObjectURL(url); resolve(0); }, 2000); 
     audio.src = url;
-    audio.onloadedmetadata = () => {
-      clearTimeout(timeout);
-      const dur = audio.duration;
-      audio.src = '';
-      URL.revokeObjectURL(url);
-      resolve(isFinite(dur) ? dur : 0);
-    };
-    audio.onerror = () => {
-      clearTimeout(timeout);
-      audio.src = '';
-      URL.revokeObjectURL(url);
-      resolve(0);
-    };
+    audio.onloadedmetadata = () => { clearTimeout(timeout); const dur = audio.duration; audio.src = ''; URL.revokeObjectURL(url); resolve(isFinite(dur) ? dur : 0); };
+    audio.onerror = () => { clearTimeout(timeout); audio.src = ''; URL.revokeObjectURL(url); resolve(0); };
   });
 
-// Decorative Background Component
 const BackgroundDecoration = () => (
   <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-    {/* Floating Notes */}
+    <div className="absolute top-0 left-1/4 w-96 h-96 bg-indigo-500/10 dark:bg-indigo-500/5 rounded-full blur-3xl animate-blob"></div>
+    <div className="absolute top-0 right-1/4 w-96 h-96 bg-fuchsia-500/10 dark:bg-fuchsia-500/5 rounded-full blur-3xl animate-blob animation-delay-2000"></div>
+    <div className="absolute -bottom-32 left-1/2 w-96 h-96 bg-violet-500/10 dark:bg-violet-500/5 rounded-full blur-3xl animate-blob animation-delay-4000"></div>
     <Music className="music-note top-[10%] left-[5%] text-indigo-500 animate-float-slow" size={64} />
     <Music2 className="music-note top-[20%] right-[10%] text-fuchsia-500 animate-float-medium" size={48} />
     <Mic2 className="music-note bottom-[15%] left-[15%] text-violet-500 animate-float-fast" size={56} />
-    <Star className="music-note top-[15%] left-[40%] text-yellow-500 animate-pulse-slow" size={32} />
-    
-    {/* Large Watermark Instruments */}
-    <Guitar className="absolute -right-20 top-40 text-slate-900/5 dark:text-white/5 rotate-12" size={400} />
-    <Piano className="absolute -left-20 bottom-0 text-slate-900/5 dark:text-white/5 -rotate-12" size={350} />
-    <Drum className="absolute right-[20%] bottom-[-50px] text-slate-900/5 dark:text-white/5 rotate-6" size={200} />
   </div>
 );
 
-const MainMenuButton: React.FC<{
+// Improved Home Button with better contrast and layout
+const HomeActionButton: React.FC<{
   label: string;
   icon: React.ReactNode;
-  active?: boolean;
   onClick: () => void;
-  description?: string;
-}> = ({ label, icon, active, onClick, description }) => (
+  description: string;
+  color: string;
+}> = ({ label, icon, onClick, description, color }) => (
   <button 
     onClick={onClick}
-    className={`group w-full flex items-center justify-between p-4 rounded-xl transition-all duration-300 border-2 text-left ${active ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg scale-105' : 'bg-white/50 dark:bg-white/5 border-transparent hover:bg-white/80 dark:hover:bg-white/10 hover:border-indigo-400/30 text-slate-600 dark:text-slate-300'}`}
+    className="group relative flex flex-col items-start justify-between p-6 rounded-[2rem] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl bg-white/70 dark:bg-slate-900/40 border border-white/60 dark:border-white/5 backdrop-blur-md overflow-hidden h-full min-h-[140px]"
   >
-    <div className="flex items-center gap-4">
-      <div className={`p-2 rounded-lg ${active ? 'bg-white/20' : 'bg-slate-200 dark:bg-black/20 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/30'} transition-colors`}>
-        {React.cloneElement(icon as React.ReactElement<any>, { size: 20, className: active ? 'text-white' : 'text-slate-500 dark:text-slate-400 group-hover:text-indigo-500' })}
-      </div>
-      <div>
-        <h3 className="font-brand text-lg uppercase leading-none tracking-wide">{label}</h3>
-        {description && <p className={`text-[10px] font-bold uppercase tracking-widest mt-1 ${active ? 'text-indigo-200' : 'text-slate-400'}`}>{description}</p>}
-      </div>
+    <div className={`absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 group-hover:scale-110 transition-all ${color}`}>
+       {React.cloneElement(icon as React.ReactElement<any>, { size: 80 })}
     </div>
-    {active && <ChevronRight className="animate-pulse" />}
+    <div className={`p-3 rounded-2xl mb-3 ${color.replace('text-', 'bg-').replace('500', '100')} dark:bg-white/5`}>
+      {React.cloneElement(icon as React.ReactElement<any>, { size: 28, className: `${color} dark:text-white` })}
+    </div>
+    <div className="z-10 text-left">
+      <h3 className="font-brand text-xl text-slate-800 dark:text-white leading-none mb-1">{label}</h3>
+      <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 opacity-80">{description}</p>
+    </div>
   </button>
 );
 
@@ -170,7 +149,6 @@ const App: React.FC = () => {
   const [importProgress, setImportProgress] = useState(0);
   const [importingFileName, setImportingFileName] = useState('');
 
-  // Modal State for Collection Name
   const [showCollectionModal, setShowCollectionModal] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<{name: string, blob: Blob, size: number}[]>([]);
   const [collectionNameInput, setCollectionNameInput] = useState('General');
@@ -186,7 +164,6 @@ const App: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const stopTimerRef = useRef<number | null>(null);
 
-  const [showSetup, setShowSetup] = useState(false);
   const [showInstall, setShowInstall] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [installError, setInstallError] = useState<string | null>(null);
@@ -198,28 +175,20 @@ const App: React.FC = () => {
     localStorage.setItem('mm_theme', theme);
   }, [theme]);
 
-  // PWA Install Prompt Listener
   useEffect(() => {
-    const handler = (e: any) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setInstallError(null);
-    };
+    const handler = (e: any) => { e.preventDefault(); setDeferredPrompt(e); setInstallError(null); };
     window.addEventListener('beforeinstallprompt', handler);
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) {
-      setInstallError("The install prompt is hidden. If you are in a preview/editor, try opening the app in a full browser tab, or look for the Install icon in the address bar.");
+      setInstallError("Install prompt unavailable. Check browser address bar.");
       return;
     }
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setDeferredPrompt(null);
-      setShowInstall(false);
-    }
+    if (outcome === 'accepted') { setDeferredPrompt(null); setShowInstall(false); }
   };
 
   useEffect(() => {
@@ -228,18 +197,14 @@ const App: React.FC = () => {
       setSongs(s.sort((a, b) => b.addedAt - a.addedAt));
       setSets(gs.sort((a, b) => b.createdAt - a.createdAt));
       setHistory(h.sort((a, b) => b.dateTime - a.dateTime));
-
       const savedDraft = localStorage.getItem('mm_active_draft');
       if (savedDraft) setSetDraft(JSON.parse(savedDraft));
     })();
   }, []);
 
   useEffect(() => {
-    if (setDraft) {
-      localStorage.setItem('mm_active_draft', JSON.stringify(setDraft));
-    } else {
-      localStorage.removeItem('mm_active_draft');
-    }
+    if (setDraft) localStorage.setItem('mm_active_draft', JSON.stringify(setDraft));
+    else localStorage.removeItem('mm_active_draft');
   }, [setDraft]);
 
   useEffect(() => {
@@ -251,11 +216,7 @@ const App: React.FC = () => {
     a.addEventListener('play', handlePlay);
     a.addEventListener('pause', handlePause);
     a.addEventListener('ended', handleEnded);
-    return () => {
-      a.removeEventListener('play', handlePlay);
-      a.removeEventListener('pause', handlePause);
-      a.removeEventListener('ended', handleEnded);
-    };
+    return () => { a.removeEventListener('play', handlePlay); a.removeEventListener('pause', handlePause); a.removeEventListener('ended', handleEnded); };
   }, []);
 
   const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
@@ -290,124 +251,54 @@ const App: React.FC = () => {
   const togglePlay = async (songId: string) => {
     const a = audioRef.current;
     if (!a) return;
-    if (playingSongId === songId) {
-      if (a.paused) a.play().catch(console.error); else a.pause();
-      return;
-    }
+    if (playingSongId === songId) { if (a.paused) a.play().catch(console.error); else a.pause(); return; }
     stopAudio();
     const url = await platformBridge.getAudioUrl(songId);
     if (!url) return;
     setPlayingSongId(songId);
-    a.src = url;
-    a.currentTime = 0;
-    a.play().catch(console.error);
+    a.src = url; a.currentTime = 0; a.play().catch(console.error);
   };
 
   const handleDeleteSong = async (id: string) => {
     if (!confirm('Remove track?')) return;
-    try {
-      if (playingSongId === id) { stopAudio(); setPlayingSongId(null); }
-      await platformBridge.deleteAudio(id);
-      await persistence.deleteSong(id);
-      setSongs(prev => prev.filter(s => s.id !== id));
-    } catch (e) { console.error('Delete failed', e); }
+    try { if (playingSongId === id) { stopAudio(); setPlayingSongId(null); } await platformBridge.deleteAudio(id); await persistence.deleteSong(id); setSongs(prev => prev.filter(s => s.id !== id)); } catch (e) { console.error('Delete failed', e); }
   };
 
   const handleImportClick = async () => {
-    try {
-      const selectedFiles = await platformBridge.selectFiles();
-      if (!selectedFiles || selectedFiles.length === 0) return;
-      setPendingFiles(selectedFiles);
-      setCollectionNameInput('General');
-      setShowCollectionModal(true);
-    } catch (e) { console.error(e); alert('Could not access files.'); }
+    try { const selectedFiles = await platformBridge.selectFiles(); if (!selectedFiles || selectedFiles.length === 0) return; setPendingFiles(selectedFiles); setCollectionNameInput('General'); setShowCollectionModal(true); } catch (e) { console.error(e); alert('Could not access files.'); }
   };
 
   const confirmImport = async () => {
-    setShowCollectionModal(false);
-    const collectionName = collectionNameInput.trim() || 'General';
-    const filesToImport = [...pendingFiles];
-    setPendingFiles([]); 
-
-    setIsImporting(true);
-    setImportProgress(0);
-    setImportingFileName('Warming up the Vault...');
-
-    const total = filesToImport.length;
-    const BATCH_SIZE = 10; 
-
+    setShowCollectionModal(false); const collectionName = collectionNameInput.trim() || 'General'; const filesToImport = [...pendingFiles]; setPendingFiles([]); 
+    setIsImporting(true); setImportProgress(0); setImportingFileName('Warming up the Vault...');
+    const total = filesToImport.length; const BATCH_SIZE = 10; 
     try {
       for (let i = 0; i < filesToImport.length; i += BATCH_SIZE) {
         const batch = filesToImport.slice(i, i + BATCH_SIZE);
         const batchResults = await Promise.all(batch.map(async (f) => {
-          try {
-            const id = crypto.randomUUID();
-            const duration = await getAudioDuration(f.blob);
-            const nameHash = simpleHash(normalizeName(f.name));
-            const song: Song = {
-              id, title: stripExt(f.name), duration, filename: f.name, fileSize: f.size, fingerprint: `${f.size}_${Math.round(duration)}_${nameHash}`, addedAt: Date.now(), hasLocalAudio: true, category: collectionName
-            };
-            await platformBridge.saveAudio(id, f.blob);
-            await persistence.saveSong(song);
-            return song;
-          } catch (err) { console.error(`Import Error (${f.name})`, err); return null; }
+          try { const id = crypto.randomUUID(); const duration = await getAudioDuration(f.blob); const nameHash = simpleHash(normalizeName(f.name)); const song: Song = { id, title: stripExt(f.name), duration, filename: f.name, fileSize: f.size, fingerprint: `${f.size}_${Math.round(duration)}_${nameHash}`, addedAt: Date.now(), hasLocalAudio: true, category: collectionName }; await platformBridge.saveAudio(id, f.blob); await persistence.saveSong(song); return song; } catch (err) { console.error(`Import Error (${f.name})`, err); return null; }
         }));
-        const successful = batchResults.filter((s): s is Song => s !== null);
-        setSongs(prev => [...successful, ...prev]);
-        setImportProgress(Math.min(100, Math.round(((i + batch.length) / total) * 100)));
-        if (batch.length > 0) setImportingFileName(batch[batch.length - 1].name);
-        await new Promise(r => setTimeout(r, 20));
+        const successful = batchResults.filter((s): s is Song => s !== null); setSongs(prev => [...successful, ...prev]); setImportProgress(Math.min(100, Math.round(((i + batch.length) / total) * 100))); if (batch.length > 0) setImportingFileName(batch[batch.length - 1].name); await new Promise(r => setTimeout(r, 20));
       }
-      setImportingFileName('Finalizing...');
-      await new Promise(r => setTimeout(r, 500)); 
-    } catch (e) { console.error('Critical Import Error', e); alert('An error occurred during import.'); } 
-    finally { setIsImporting(false); setImportingFileName(''); }
+      setImportingFileName('Finalizing...'); await new Promise(r => setTimeout(r, 500)); 
+    } catch (e) { console.error('Critical Import Error', e); alert('An error occurred during import.'); } finally { setIsImporting(false); setImportingFileName(''); }
   };
 
   const exportSet = (set: GameSet) => {
     const relatedSongs = songs.filter(s => set.songs.some(gs => gs.songId === s.id));
-    const data = {
-      version: '2.0',
-      type: 'game-set',
-      set,
-      songMetadata: relatedSongs.map(s => ({
-        id: s.id, title: s.title, filename: s.filename, fileSize: s.fileSize, fingerprint: s.fingerprint, category: s.category
-      }))
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${normalizeName(set.name || 'Game')}.mmset`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const data = { version: '2.0', type: 'game-set', set, songMetadata: relatedSongs.map(s => ({ id: s.id, title: s.title, filename: s.filename, fileSize: s.fileSize, fingerprint: s.fingerprint, category: s.category })) };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${normalizeName(set.name || 'Game')}.mmset`; a.click(); URL.revokeObjectURL(url);
   };
 
   const importSetFile = async () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.mmset,application/json';
+    const input = document.createElement('input'); input.type = 'file'; input.accept = '.mmset,application/json';
     input.onchange = async (e: any) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const text = await file.text();
+      const file = e.target.files[0]; if (!file) return; const text = await file.text();
       try {
-        const data = JSON.parse(text);
-        if (data.type !== 'game-set') throw new Error('Format Error');
+        const data = JSON.parse(text); if (data.type !== 'game-set') throw new Error('Format Error');
         const updatedSongs = [...songs];
-        for (const meta of data.songMetadata) {
-          if (!songs.some(s => s.id === meta.id)) {
-            const newSong: Song = { ...meta, duration: 0, addedAt: Date.now(), hasLocalAudio: false };
-            await persistence.saveSong(newSong);
-            updatedSongs.push(newSong);
-          }
-        }
-        setSongs(updatedSongs);
-        const newSet: GameSet = data.set;
-        const nextSets = [newSet, ...sets.filter(s => s.id !== newSet.id)];
-        await persistence.saveSets(nextSets);
-        setSets(nextSets);
-        alert(`Imported "${newSet.name}".`);
+        for (const meta of data.songMetadata) { if (!songs.some(s => s.id === meta.id)) { const newSong: Song = { ...meta, duration: 0, addedAt: Date.now(), hasLocalAudio: false }; await persistence.saveSong(newSong); updatedSongs.push(newSong); } }
+        setSongs(updatedSongs); const newSet: GameSet = data.set; const nextSets = [newSet, ...sets.filter(s => s.id !== newSet.id)]; await persistence.saveSets(nextSets); setSets(nextSets); alert(`Imported "${newSet.name}".`);
       } catch (err) { alert('Import Failed.'); }
     };
     input.click();
@@ -415,631 +306,402 @@ const App: React.FC = () => {
 
   const toggleSelectAll = () => {
     const visibleIds = filteredSongs.filter(s => !setDraft?.songs.some(gs => gs.songId === s.id)).map(s => s.id);
-    if (selectedPickerIds.size === visibleIds.length && visibleIds.length > 0) {
-      setSelectedPickerIds(new Set());
-    } else {
-      setSelectedPickerIds(new Set(visibleIds));
-    }
+    if (selectedPickerIds.size === visibleIds.length && visibleIds.length > 0) { setSelectedPickerIds(new Set()); } else { setSelectedPickerIds(new Set(visibleIds)); }
   };
 
-  const toggleSongSelection = (id: string) => {
-    const next = new Set(selectedPickerIds);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    setSelectedPickerIds(next);
-  };
+  const toggleSongSelection = (id: string) => { const next = new Set(selectedPickerIds); if (next.has(id)) next.delete(id); else next.add(id); setSelectedPickerIds(next); };
 
   const addSelectedToSet = () => {
     if (!setDraft) return;
-    const currentSongIds = new Set(setDraft.songs.map(s => s.songId));
-    const newSongs: GameSetSong[] = [];
-    selectedPickerIds.forEach(id => {
-      if (!currentSongIds.has(id)) {
-        newSongs.push({ 
-          songId: id, 
-          introStart: 0, introEnd: 5,
-          clipStart: 0, clipEnd: 5, 
-          hintStart: 5, hintEnd: 10,
-          bonusStart: 10, bonusEnd: 15,
-          isConfigured: false,
-          orderIndex: setDraft.songs.length + newSongs.length 
-        });
-      }
-    });
-    setSetDraft({ ...setDraft, songs: [...setDraft.songs, ...newSongs] });
-    setSelectedPickerIds(new Set());
+    const currentSongIds = new Set(setDraft.songs.map(s => s.songId)); const newSongs: GameSetSong[] = [];
+    selectedPickerIds.forEach(id => { if (!currentSongIds.has(id)) { newSongs.push({ songId: id, introStart: 0, introEnd: 5, clipStart: 0, clipEnd: 5, hintStart: 5, hintEnd: 10, bonusStart: 10, bonusEnd: 15, isConfigured: false, orderIndex: setDraft.songs.length + newSongs.length }); } });
+    setSetDraft({ ...setDraft, songs: [...setDraft.songs, ...newSongs] }); setSelectedPickerIds(new Set());
   };
 
   const relinkLibrary = async () => {
-    const files = await platformBridge.selectFiles();
-    if (!files.length) return;
-    setIsImporting(true);
-    setImportProgress(0);
-    let matched = 0;
+    const files = await platformBridge.selectFiles(); if (!files.length) return; setIsImporting(true); setImportProgress(0); let matched = 0;
     for (let i = 0; i < files.length; i++) {
-      const f = files[i];
-      setImportingFileName(f.name);
+      const f = files[i]; setImportingFileName(f.name);
       const cand = songs.find(s => !s.hasLocalAudio && (s.fileSize === f.size || normalizeName(s.filename) === normalizeName(f.name)));
-      if (cand) {
-        await platformBridge.saveAudio(cand.id, f.blob);
-        const up: Song = { ...cand, hasLocalAudio: true };
-        await persistence.saveSong(up);
-        setSongs(prev => prev.map(x => x.id === up.id ? up : x));
-        matched++;
-      }
-      setImportProgress(Math.round(((i + 1) / files.length) * 100));
-      await new Promise(r => setTimeout(r, 10));
+      if (cand) { await platformBridge.saveAudio(cand.id, f.blob); const up: Song = { ...cand, hasLocalAudio: true }; await persistence.saveSong(up); setSongs(prev => prev.map(x => x.id === up.id ? up : x)); matched++; }
+      setImportProgress(Math.round(((i + 1) / files.length) * 100)); await new Promise(r => setTimeout(r, 10));
     }
-    setIsImporting(false);
-    setImportingFileName('');
-    alert(`Linked ${matched} tracks.`);
+    setIsImporting(false); setImportingFileName(''); alert(`Linked ${matched} tracks.`);
   };
 
   const saveSet = async () => {
-    if (!setDraft || !setDraft.name.trim()) return;
-    const norm = { ...setDraft, songs: setDraft.songs.map((s, i) => ({ ...s, orderIndex: i })), isDraft: false };
-    const next = [norm, ...sets.filter(s => s.id !== norm.id)];
-    await persistence.saveSets(next);
-    setSets(next);
-    setSetDraft(null); 
-    setView('home');
+    if (!setDraft || !setDraft.name.trim()) return; const norm = { ...setDraft, songs: setDraft.songs.map((s, i) => ({ ...s, orderIndex: i })), isDraft: false };
+    const next = [norm, ...sets.filter(s => s.id !== norm.id)]; await persistence.saveSets(next); setSets(next); setSetDraft(null); setView('home');
   };
 
   const startGame = (set: GameSet, teamsCount: number) => {
     const teams: Team[] = Array.from({ length: teamsCount }).map((_, i) => ({ id: crypto.randomUUID(), name: `Team ${i + 1}`, score: 0 }));
     const indices = Array.from({ length: set.songs.length }).map((_, i) => i).sort(() => Math.random() - 0.5);
-    setActiveSet(set);
-    setGameState({ id: crypto.randomUUID(), setId: set.id, teams, currentSongIndex: 0, currentTurnTeamIndex: 0, isRevealed: false, stealAttempted: false, isFinished: false, shuffledIndices: indices });
-    setStealMode(false);
-    setScoredThisSong(false);
-    setView('game');
+    setActiveSet(set); setGameState({ id: crypto.randomUUID(), setId: set.id, teams, currentSongIndex: 0, currentTurnTeamIndex: 0, isRevealed: false, stealAttempted: false, isFinished: false, shuffledIndices: indices }); setStealMode(false); setScoredThisSong(false); setView('game');
   };
 
-  const award = (teamId: string, pts: number) => {
-    if (!gameState) return;
-    setGameState({ ...gameState, teams: gameState.teams.map(t => t.id === teamId ? { ...t, score: t.score + pts } : t), isRevealed: true, stealAttempted: true });
-    setScoredThisSong(true);
-    setStealMode(false);
-  };
+  const award = (teamId: string, pts: number) => { if (!gameState) return; setGameState({ ...gameState, teams: gameState.teams.map(t => t.id === teamId ? { ...t, score: t.score + pts } : t), isRevealed: true, stealAttempted: true }); setScoredThisSong(true); setStealMode(false); };
 
   const nextSong = () => {
-    if (!gameState || !activeSet) return;
-    const isLast = gameState.currentSongIndex >= activeSet.songs.length - 1;
-    if (isLast) {
-      const result: GameResult = { id: crypto.randomUUID(), dateTime: Date.now(), setName: activeSet.name, teams: gameState.teams };
-      persistence.saveHistory(result);
-      setHistory(prev => [result, ...prev]);
-      setView('history');
-      setGameState(null);
-    } else {
-      setGameState({ ...gameState, currentSongIndex: gameState.currentSongIndex + 1, currentTurnTeamIndex: (gameState.currentTurnTeamIndex + 1) % gameState.teams.length, isRevealed: false, stealAttempted: false });
-      setStealMode(false);
-      setScoredThisSong(false);
-    }
+    if (!gameState || !activeSet) return; const isLast = gameState.currentSongIndex >= activeSet.songs.length - 1;
+    if (isLast) { const result: GameResult = { id: crypto.randomUUID(), dateTime: Date.now(), setName: activeSet.name, teams: gameState.teams }; persistence.saveHistory(result); setHistory(prev => [result, ...prev]); setView('history'); setGameState(null); } 
+    else { setGameState({ ...gameState, currentSongIndex: gameState.currentSongIndex + 1, currentTurnTeamIndex: (gameState.currentTurnTeamIndex + 1) % gameState.teams.length, isRevealed: false, stealAttempted: false }); setStealMode(false); setScoredThisSong(false); }
   };
 
   const collections = useMemo(() => Array.from(new Set(songs.map(s => s.category || 'General'))).sort(), [songs]);
-
-  const editingSongConfig = useMemo(() => {
-    if (!editingSongId || !setDraft) return null;
-    return setDraft.songs.find(s => s.songId === editingSongId);
-  }, [editingSongId, setDraft]);
+  const editingSongConfig = useMemo(() => { if (!editingSongId || !setDraft) return null; return setDraft.songs.find(s => s.songId === editingSongId); }, [editingSongId, setDraft]);
 
   return (
-    <div className={`min-h-screen flex flex-col transition-colors duration-500 ${theme === 'light' ? 'bg-mesh-light text-slate-900' : 'bg-mesh-dark text-slate-100'} selection:bg-fuchsia-500/30 font-sans overflow-hidden`}>
+    <div className={`min-h-screen flex flex-col transition-colors duration-700 ${theme === 'light' ? 'bg-mesh-light text-slate-900' : 'bg-mesh-dark text-slate-100'} selection:bg-fuchsia-500/30 font-sans overflow-hidden`}>
       <BackgroundDecoration />
       <audio ref={audioRef} className="hidden" />
 
-      {/* Compact Header */}
+      {/* Header - Visible everywhere except Game View */}
       {view !== 'game' && (
-        <header className="px-6 py-4 flex justify-between items-center z-50 sticky top-0 backdrop-blur-sm bg-white/30 dark:bg-black/20 border-b border-white/20 dark:border-white/5 h-16 shrink-0">
+        <header className="px-6 py-4 flex justify-between items-center z-50 sticky top-0 backdrop-blur-md bg-white/20 dark:bg-black/10 border-b border-white/20 dark:border-white/5 h-20 shrink-0">
           <button onClick={() => setView('home')} className="flex items-center gap-3 group">
-            <div className="p-2 bg-gradient-to-br from-indigo-500 to-fuchsia-600 rounded-xl shadow-lg group-hover:scale-105 transition-transform"><Music size={18} className="text-white"/></div>
-            <span className="font-display text-2xl tracking-normal text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-fuchsia-600 dark:from-indigo-400 dark:to-fuchsia-400 drop-shadow-sm">MELODYMATCH</span>
+            <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-fuchsia-600 rounded-xl shadow-lg group-hover:scale-105 transition-transform"><Music size={20} className="text-white"/></div>
+            <span className="font-display text-3xl tracking-normal text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-fuchsia-600 dark:from-indigo-400 dark:to-fuchsia-400 drop-shadow-sm">MELODYMATCH</span>
           </button>
-          <div className="flex items-center gap-2">
-            <button onClick={toggleTheme} className="p-2 rounded-lg glass-panel text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-white/10 transition-colors">
-              {theme === 'light' ? <Moon size={18} strokeWidth={2.5} /> : <Sun size={18} strokeWidth={2.5} />}
-            </button>
+          <div className="flex items-center gap-3">
             {setDraft && view !== 'setBuilder' && (
-              <button onClick={() => setView('setBuilder')} className="px-3 py-2 bg-indigo-600 text-white rounded-lg flex items-center gap-2 font-bold text-[10px] shadow-lg shadow-indigo-500/30 animate-pulse hover:bg-indigo-500 transition-colors uppercase tracking-widest">
-                <Clock size={14} /> Resume
+              <button onClick={() => setView('setBuilder')} className="px-4 py-2 bg-indigo-600/90 text-white rounded-xl flex items-center gap-2 font-bold text-[10px] shadow-lg shadow-indigo-500/20 animate-pulse hover:bg-indigo-500 transition-colors uppercase tracking-widest backdrop-blur-sm">
+                <Clock size={14} /> Resume Draft
               </button>
             )}
-            <button onClick={() => setView('library')} className={`p-2 rounded-lg transition-all ${view === 'library' ? 'bg-indigo-600 text-white shadow-lg' : 'glass-panel text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-white/10'}`}>
-              <Library size={18} strokeWidth={2.5} />
-            </button>
-            <button onClick={() => setView('history')} className={`p-2 rounded-lg transition-all ${view === 'history' ? 'bg-fuchsia-600 text-white shadow-lg' : 'glass-panel text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-white/10'}`}>
-              <HistoryIcon size={18} strokeWidth={2.5} />
-            </button>
+            <button onClick={toggleTheme} className="p-2.5 rounded-xl glass-panel text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-white/10 transition-colors shadow-sm"><Sun size={20} className="hidden dark:block" /><Moon size={20} className="block dark:hidden" /></button>
+            <button onClick={() => setView('library')} className={`p-2.5 rounded-xl transition-all ${view === 'library' ? 'bg-indigo-600 text-white shadow-lg' : 'glass-panel text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-white/10'}`}><Library size={20} /></button>
+            <button onClick={() => setView('history')} className={`p-2.5 rounded-xl transition-all ${view === 'history' ? 'bg-fuchsia-600 text-white shadow-lg' : 'glass-panel text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-white/10'}`}><HistoryIcon size={20} /></button>
           </div>
         </header>
       )}
 
-      {/* Main Content Area - constrained to viewport height for home view */}
-      <main className={`flex-grow p-4 md:p-6 z-10 ${view === 'home' || view === 'game' ? 'overflow-hidden flex flex-col p-0 md:p-0' : 'overflow-y-auto'}`}>
+      {/* Main Content */}
+      <main className={`flex-grow z-10 ${view === 'home' || view === 'game' ? 'overflow-hidden flex flex-col p-0' : 'overflow-y-auto p-6 md:p-8'}`}>
         
-        {/* HOME VIEW - TITLE SCREEN LAYOUT */}
+        {/* HOME VIEW - RESPONSIVE 12-COL GRID */}
         {view === 'home' && (
-          <div className="w-full h-full max-w-5xl mx-auto animate-in fade-in duration-700 flex flex-col md:flex-row gap-8 items-center justify-center">
-            {/* ... Same as before ... */}
-            <div className="w-full md:w-5/12 space-y-4">
-               <div className="mb-8 pl-2">
-                 <h1 className="text-5xl md:text-6xl font-display dark:glow-text-neon tracking-normal text-slate-900 dark:text-white leading-[0.9] uppercase">
-                    MELODY<br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-fuchsia-500">MATCH</span>
-                 </h1>
-                 <div className="h-1 w-24 bg-gradient-to-r from-indigo-500 to-fuchsia-500 rounded-full mt-4 mb-2"></div>
-                 <p className="text-xs font-bold uppercase tracking-[0.3em] text-slate-400">Quiz Engine v2.0</p>
-               </div>
+          <div className="h-full w-full flex items-center justify-center p-4 lg:p-8 animate-in fade-in duration-700">
+            <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 h-full lg:h-auto items-center">
+              
+              {/* Left Col: Branding & Actions */}
+              <div className="lg:col-span-7 flex flex-col justify-center space-y-8 lg:space-y-12 text-center lg:text-left">
+                 <div>
+                   <h1 className="text-6xl sm:text-7xl lg:text-9xl font-display leading-[0.85] tracking-tight mb-4 dark:text-white text-slate-900 drop-shadow-2xl">
+                      MELODY<br/>
+                      <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 via-fuchsia-500 to-indigo-500 font-outline-2 lg:font-outline-4">MATCH</span>
+                   </h1>
+                   <div className="flex items-center justify-center lg:justify-start gap-4">
+                      <div className="h-1.5 w-24 bg-gradient-to-r from-indigo-500 to-fuchsia-500 rounded-full"></div>
+                      <p className="text-sm font-bold uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">The Ultimate Music Quiz</p>
+                   </div>
+                 </div>
 
-               <div className="space-y-3">
-                  <MainMenuButton 
-                     label="Quick Play" 
-                     icon={<Gamepad2 />} 
-                     description={`${sets.length} Games Ready`}
-                     active={true}
-                     onClick={() => {}}
-                  />
-                  <MainMenuButton 
-                     label="Game Builder" 
-                     icon={<ListPlus />} 
-                     description="Create & Edit"
-                     onClick={() => { if (!setDraft) setSetDraft({ id: crypto.randomUUID(), name: '', description: '', songs: [], createdAt: Date.now() }); setView('setBuilder'); }}
-                  />
-                  <MainMenuButton 
-                     label="Music Vault" 
-                     icon={<LibraryBig />} 
-                     description={`${songs.length} Tracks`}
-                     onClick={() => setView('library')}
-                  />
-                  <MainMenuButton 
-                     label="Hall of Fame" 
-                     icon={<Trophy />} 
-                     onClick={() => setView('history')}
-                  />
-               </div>
-               
-               <div className="pt-4 flex gap-3">
-                 <button onClick={importSetFile} className="flex-1 py-3 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold uppercase text-slate-500 hover:text-indigo-500 hover:border-indigo-400 transition-colors flex items-center justify-center gap-2"><FileUp size={14}/> Import Set</button>
-                 <button onClick={() => setShowInstall(true)} className="flex-1 py-3 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold uppercase text-slate-500 hover:text-indigo-500 hover:border-indigo-400 transition-colors flex items-center justify-center gap-2"><Download size={14}/> Install App</button>
-               </div>
-            </div>
+                 {/* Action Grid - 2x2 Layout */}
+                 <div className="grid grid-cols-2 gap-4 w-full max-w-2xl mx-auto lg:mx-0">
+                    <HomeActionButton 
+                       label="Game Builder" 
+                       description="Create New Set" 
+                       icon={<ListPlus />} 
+                       color="text-fuchsia-500"
+                       onClick={() => { if (!setDraft) setSetDraft({ id: crypto.randomUUID(), name: '', description: '', songs: [], createdAt: Date.now() }); setView('setBuilder'); }}
+                    />
+                    <HomeActionButton 
+                       label="Music Vault" 
+                       description={`${songs.length} Tracks Ready`} 
+                       icon={<LibraryBig />} 
+                       color="text-indigo-500"
+                       onClick={() => setView('library')}
+                    />
+                    <HomeActionButton 
+                       label="Hall of Fame" 
+                       description="High Scores" 
+                       icon={<Trophy />} 
+                       color="text-amber-500"
+                       onClick={() => setView('history')}
+                    />
+                    <HomeActionButton 
+                       label="Import Set" 
+                       description=".MMSET File" 
+                       icon={<FileUp />} 
+                       color="text-emerald-500"
+                       onClick={importSetFile}
+                    />
+                 </div>
+                 
+                 <div className="lg:hidden">
+                    <button onClick={() => setShowInstall(true)} className="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-indigo-500 flex items-center justify-center gap-2 p-4 bg-white/50 dark:bg-white/5 rounded-xl"><Download size={14}/> Install App Offline</button>
+                 </div>
+              </div>
 
-            <div className="w-full md:w-7/12 h-[500px] glass-panel rounded-[2.5rem] p-6 shadow-2xl flex flex-col relative overflow-hidden border border-white/40 dark:border-white/5">
-               <div className="flex justify-between items-center mb-6 shrink-0 relative z-10 border-b border-slate-200 dark:border-white/5 pb-4">
-                  <h2 className="text-slate-700 dark:text-white font-brand text-lg uppercase tracking-wider flex items-center gap-2">
-                    <Zap size={18} className="text-yellow-500 fill-yellow-500"/> Available Games
-                  </h2>
-               </div>
+              {/* Right Col: Quick Play Stage */}
+              <div className="lg:col-span-5 h-[500px] lg:h-[650px] relative w-full">
+                 <div className="absolute inset-0 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-[3rem] shadow-2xl border border-white/40 dark:border-white/10 flex flex-col overflow-hidden">
+                    <div className="p-8 border-b border-slate-200/50 dark:border-white/5 flex justify-between items-center bg-white/40 dark:bg-white/5">
+                        <h2 className="text-xl font-brand text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-3">
+                          <Zap size={24} className="text-yellow-500 fill-yellow-500"/> Quick Play
+                        </h2>
+                        <span className="px-3 py-1 rounded-full bg-slate-200 dark:bg-white/10 text-[10px] font-black uppercase text-slate-500 dark:text-slate-300">{sets.length} Games</span>
+                    </div>
 
-               {sets.length === 0 ? (
-                  <div className="flex-grow flex flex-col items-center justify-center gap-4 text-slate-400">
-                    <Music size={40} className="opacity-20" />
-                    <p className="font-mono text-xs uppercase tracking-widest opacity-60">No Games Found</p>
-                  </div>
-               ) : (
-                  <div className="flex-grow overflow-y-auto custom-scrollbar pr-2 space-y-2">
-                    {sets.map(s => (
-                      <div key={s.id} className="p-3 bg-white/40 dark:bg-slate-900/40 rounded-xl border border-white/40 dark:border-white/5 flex items-center justify-between hover:bg-white/60 dark:hover:bg-slate-800/60 transition-all group">
-                        <div className="truncate px-2">
-                            <h4 className="text-sm font-bold text-slate-800 dark:text-white truncate group-hover:text-indigo-500 transition-colors">{s.name || 'Untitled Game'}</h4>
-                            <div className="flex items-center gap-2">
-                               <span className="text-[9px] font-mono text-slate-400 uppercase">{s.songs.length} Tracks</span>
+                    <div className="flex-grow overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                       {sets.length === 0 ? (
+                          <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 opacity-60">
+                             <Gamepad2 size={64} strokeWidth={1} />
+                             <p className="font-brand text-lg uppercase tracking-widest">No Games Found</p>
+                          </div>
+                       ) : (
+                          sets.map(s => (
+                            <div key={s.id} className="group p-5 bg-white/50 dark:bg-slate-800/50 hover:bg-white/80 dark:hover:bg-slate-800/80 border border-transparent hover:border-indigo-500/30 rounded-[2rem] transition-all duration-300 flex flex-col gap-4">
+                               <div className="flex justify-between items-start">
+                                  <div>
+                                     <h4 className="font-bold text-lg text-slate-800 dark:text-white leading-tight mb-1">{s.name || 'Untitled Game'}</h4>
+                                     <p className="text-[10px] font-mono text-slate-500 uppercase tracking-wider">{s.songs.length} Tracks • {new Date(s.createdAt).toLocaleDateString()}</p>
+                                  </div>
+                                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                     <button onClick={() => exportSet(s)} className="p-2 bg-slate-200 dark:bg-white/10 rounded-full hover:text-fuchsia-500"><Share2 size={14}/></button>
+                                     <button onClick={() => { setSetDraft(s); setView('setBuilder'); }} className="p-2 bg-slate-200 dark:bg-white/10 rounded-full hover:text-indigo-500"><Edit3 size={14}/></button>
+                                  </div>
+                               </div>
+                               <button onClick={() => startGame(s, 2)} className="w-full py-4 bg-slate-900 dark:bg-indigo-600 text-white rounded-2xl font-brand uppercase text-sm tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-lg flex items-center justify-center gap-2">
+                                  <PlayCircle size={18} /> Start Game
+                               </button>
                             </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => exportSet(s)} className="p-2 text-slate-400 hover:text-fuchsia-500 transition-colors"><Share2 size={14}/></button>
-                          <button onClick={() => { setSetDraft(s); setView('setBuilder'); }} className="p-2 text-slate-400 hover:text-indigo-500 transition-colors"><Edit3 size={14}/></button>
-                          <button onClick={() => startGame(s, 2)} className="px-4 py-2 bg-indigo-600 rounded-lg font-bold text-[10px] text-white shadow-md hover:bg-indigo-500 transition-all uppercase tracking-wide">Play</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-               )}
+                          ))
+                       )}
+                    </div>
+                 </div>
+              </div>
             </div>
           </div>
         )}
 
-        {/* GAME VIEW - STUDIO TV OVERLAY LAYOUT */}
+        {/* GAME VIEW - NO CONTAINERS (PURE OVERLAY) */}
         {view === 'game' && gameState && (
-          <div className="flex flex-col h-full animate-in fade-in w-full relative bg-black/40">
-            {/* Absolute Quit Button */}
-            <button onClick={() => { if(confirm("End game?")) { setGameState(null); setView('home'); }}} className="absolute top-4 left-4 z-50 p-3 bg-black/40 rounded-full text-slate-400 hover:text-white hover:bg-rose-500 transition-all">
-               <X size={20} />
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center overflow-hidden">
+            
+            {/* Top Right Quit */}
+            <button onClick={() => { if(confirm("End game?")) { setGameState(null); setView('home'); }}} className="absolute top-6 right-6 z-50 p-4 bg-black/20 hover:bg-rose-600/80 backdrop-blur-md rounded-full text-white/50 hover:text-white transition-all group">
+               <X size={24} />
+               <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-black/80 text-white text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">QUIT</span>
             </button>
 
-            {/* Top Overlay: Scores */}
-            <div className="absolute top-0 inset-x-0 p-4 z-40 flex flex-col items-center pointer-events-none">
-              <div className="pointer-events-auto mb-2">
-                 <Scoreboard teams={gameState.teams} currentTurnIndex={gameState.currentTurnTeamIndex} />
-              </div>
-              <div className="bg-black/40 backdrop-blur-md px-4 py-1 rounded-full border border-white/5 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-300">
-                    On Air • Track {gameState.currentSongIndex + 1}/{activeSet?.songs.length}
-                  </span>
-              </div>
+            {/* Top Scoreboard (Floating) */}
+            <div className="absolute top-12 z-40 scale-110">
+               <Scoreboard teams={gameState.teams} currentTurnIndex={gameState.currentTurnTeamIndex} />
             </div>
 
-            {/* Center Stage: The Vinyl Player */}
-            <div className="flex-grow flex items-center justify-center relative z-10 scale-110 md:scale-125 pb-20">
-              {/* Fake Audio Visualizers jumping in background */}
-              {isPlaying && (
-                <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-30 pointer-events-none scale-y-[2]">
-                   {[...Array(24)].map((_, i) => (
-                      <div key={i} className="w-1.5 md:w-3 bg-gradient-to-t from-indigo-500 to-fuchsia-500 rounded-full audio-bar" style={{ animationDuration: `${Math.random() * 500 + 300}ms` }}></div>
-                   ))}
-                </div>
-              )}
+            {/* Center Vinyl (Massive) */}
+            <div className="relative z-10 flex items-center justify-center scale-125 md:scale-150 transition-transform duration-1000">
+               {/* Ambient Glow */}
+               <div className={`absolute inset-0 bg-indigo-500/20 blur-[100px] rounded-full transition-opacity duration-500 ${isPlaying ? 'opacity-100' : 'opacity-0'}`}></div>
+               
+               {/* Record */}
+               <div className={`w-[350px] h-[350px] rounded-full bg-[#0a0a0a] border-4 border-[#1a1a1a] shadow-2xl flex items-center justify-center vinyl-grooves relative ${isPlaying ? 'animate-spin-slow' : ''}`}>
+                  <div className="absolute inset-0 rounded-full border border-white/5 pointer-events-none"></div>
+                  {/* Label */}
+                  <div className="w-32 h-32 rounded-full bg-gradient-to-tr from-indigo-600 to-fuchsia-600 flex items-center justify-center shadow-inner relative overflow-hidden">
+                     <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-30"></div>
+                     <Music size={40} className="text-white/80 drop-shadow-md" />
+                     <div className="absolute w-3 h-3 bg-black rounded-full"></div>
+                  </div>
+               </div>
 
-              <div className="relative group perspective-1000">
-                {/* The Vinyl Disc */}
-                <div className={`
-                  w-[300px] h-[300px] md:w-[450px] md:h-[450px] rounded-full border-[8px] border-[#1a1a1a] bg-[#111] shadow-2xl flex items-center justify-center relative z-20 transition-all duration-700
-                  ${isPlaying ? 'animate-spin-slow shadow-[0_0_80px_rgba(99,102,241,0.4)]' : 'shadow-2xl'}
-                  vinyl-grooves
-                `}>
-                   {/* Reflection */}
-                   <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-white/5 to-transparent pointer-events-none"></div>
-                   
-                   {/* Center Label */}
-                   <div className="w-1/3 h-1/3 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-full flex items-center justify-center border-4 border-[#222] shadow-inner relative">
-                      <div className="w-3 h-3 bg-black rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 border border-slate-700"></div>
-                      <Music size={40} className="text-white/40" />
-                   </div>
-                </div>
-
-                {/* The Sleeve / Reveal Card - Expands from center */}
-                <div className={`
-                  absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] md:w-[480px] h-[320px] md:h-[480px] 
-                  bg-white dark:bg-slate-900/90 backdrop-blur-xl rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.5)] flex flex-col items-center justify-center p-8 text-center border border-white/20 transition-all duration-500 ease-out
-                  ${gameState.isRevealed 
-                    ? 'scale-100 opacity-100 z-30' 
-                    : 'scale-50 opacity-0 z-0 pointer-events-none'}
-                `}>
-                   {gameState.isRevealed && (
-                     <>
-                      <div className="p-4 bg-indigo-500/10 rounded-full mb-4 animate-bounce-small">
-                        <Music2 size={64} className="text-indigo-500" />
-                      </div>
-                      <h2 className="text-2xl md:text-4xl font-brand text-slate-800 dark:text-white leading-tight mb-2">
-                        {songs.find(s => s.id === (activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]].songId))?.title}
-                      </h2>
-                      <div className="h-1 w-20 bg-indigo-500 rounded-full mx-auto my-4"></div>
-                      <p className="text-xs font-mono uppercase tracking-[0.3em] text-slate-400">Correct Answer</p>
-                     </>
-                   )}
-                </div>
-              </div>
+               {/* Reveal Card (Pop over) */}
+               <div className={`absolute z-20 bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl p-10 rounded-[3rem] shadow-2xl text-center border border-white/20 transition-all duration-500 ease-out transform ${gameState.isRevealed ? 'scale-100 opacity-100 translate-y-0' : 'scale-50 opacity-0 translate-y-20 pointer-events-none'}`}>
+                  <h2 className="text-4xl md:text-5xl font-brand text-slate-900 dark:text-white mb-2 leading-none">{songs.find(s => s.id === (activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]].songId))?.title}</h2>
+                  <p className="text-sm font-mono uppercase tracking-[0.4em] text-indigo-500">Correct Answer</p>
+               </div>
             </div>
 
-            {/* Bottom Floating Control Dock */}
-            <div className="absolute bottom-8 left-0 right-0 z-40 flex justify-center">
-              <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-full px-4 py-3 shadow-[0_10px_40px_rgba(0,0,0,0.5)] flex items-center gap-4 transition-all hover:scale-105 duration-300">
+            {/* Bottom Controls (Floating Island) */}
+            <div className="absolute bottom-10 z-50">
+               <div className="flex items-center gap-2 p-2 rounded-full bg-black/60 dark:bg-slate-900/80 backdrop-blur-2xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
                   
-                  {/* Playback Controls */}
-                  <div className="flex gap-2 border-r border-white/10 pr-4">
+                  {/* Audio Regions */}
+                  <div className="flex gap-1 pr-4 border-r border-white/10">
                      {[
-                         { label: 'Intro', color: 'text-emerald-400 bg-emerald-500/10', icon: Play, action: () => { const cur = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(cur) playRange(cur.songId, cur.introStart || 0, cur.introEnd || 5); } },
-                         { label: 'Main', color: 'text-indigo-400 bg-indigo-500/10', icon: Zap, action: () => { const cur = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(cur) playRange(cur.songId, cur.clipStart, cur.clipEnd); } },
-                         { label: 'Hint', color: 'text-amber-400 bg-amber-500/10', icon: Sparkles, action: () => { const cur = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(cur) playRange(cur.songId, cur.hintStart, cur.hintEnd); } },
-                         { label: 'Bonus', color: 'text-fuchsia-400 bg-fuchsia-500/10', icon: Star, action: () => { const cur = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(cur) playRange(cur.songId, cur.bonusStart || 10, cur.bonusEnd || 15); } },
-                     ].map((btn) => (
-                       <button key={btn.label} onClick={btn.action} className={`p-3 rounded-full hover:bg-white/10 transition-colors relative group ${btn.color}`} title={btn.label}>
-                          <btn.icon size={20} fill="currentColor" className="opacity-80 group-hover:opacity-100" />
-                          <span className="absolute -top-8 left-1/2 -translate-x-1/2 text-[9px] font-black uppercase bg-black text-white px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">{btn.label}</span>
+                       { l: 'INT', i: Play, c: 'bg-emerald-500 text-white', fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) playRange(s.songId, s.introStart||0, s.introEnd||5); } },
+                       { l: 'MAIN', i: Zap, c: 'bg-indigo-500 text-white', fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) playRange(s.songId, s.clipStart, s.clipEnd); } },
+                       { l: 'HINT', i: Sparkles, c: 'bg-amber-500 text-white', fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) playRange(s.songId, s.hintStart, s.hintEnd); } },
+                       { l: 'BONUS', i: Star, c: 'bg-fuchsia-500 text-white', fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) playRange(s.songId, s.bonusStart||10, s.bonusEnd||15); } },
+                     ].map(b => (
+                       <button key={b.l} onClick={b.fn} className={`w-12 h-12 rounded-full flex items-center justify-center hover:scale-110 transition-transform ${b.c}`} title={b.l}>
+                          <b.i size={18} fill="currentColor"/>
                        </button>
                      ))}
                   </div>
 
-                  {/* Game Flow Controls */}
-                  <div className="flex gap-3 pl-1">
-                      <button onClick={() => award(gameState.teams[gameState.currentTurnTeamIndex].id, 2)} className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-full font-brand text-sm shadow-lg flex items-center gap-2 transition-transform active:scale-95 uppercase tracking-wide">
+                  {/* Host Actions */}
+                  <div className="flex gap-2 pl-2">
+                     <button onClick={() => award(gameState.teams[gameState.currentTurnTeamIndex].id, 2)} className="px-6 h-12 bg-emerald-600 hover:bg-emerald-500 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg flex items-center gap-2 hover:-translate-y-0.5 transition-all">
                         <CheckCircle size={18} /> Correct
-                      </button>
-                      
-                      {!gameState.isRevealed ? (
-                        <>
-                          <button onClick={() => setStealMode(true)} className="px-6 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-full font-brand text-sm shadow-lg transition-transform active:scale-95 uppercase tracking-wide">
-                            Wrong
-                          </button>
-                          <button onClick={() => setGameState({...gameState, isRevealed: true})} className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-full transition-colors" title="Reveal">
-                             <FastForward size={24} />
-                          </button>
-                        </>
-                      ) : (
-                        <button onClick={nextSong} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full font-brand text-sm shadow-lg flex items-center gap-2 transition-transform active:scale-95 uppercase tracking-wide">
-                           Next Track <SkipForward size={18} />
-                        </button>
-                      )}
+                     </button>
+                     
+                     {!gameState.isRevealed ? (
+                       <>
+                         <button onClick={() => setStealMode(true)} className="px-6 h-12 bg-rose-600 hover:bg-rose-500 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg hover:-translate-y-0.5 transition-all">Wrong</button>
+                         <button onClick={() => setGameState({...gameState, isRevealed: true})} className="w-12 h-12 bg-slate-700 hover:bg-slate-600 text-white rounded-full flex items-center justify-center transition-colors"><FastForward size={20} /></button>
+                       </>
+                     ) : (
+                       <button onClick={nextSong} className="px-6 h-12 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg flex items-center gap-2 hover:-translate-y-0.5 transition-all">Next <SkipForward size={18} /></button>
+                     )}
                   </div>
-              </div>
+               </div>
             </div>
 
-            {/* Steal Mode Modal (Clean Overlay) */}
+            {/* Overlay Modals (Steal) */}
             {stealMode && !scoredThisSong && (
-                <div className="absolute inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center animate-in fade-in">
-                    <div className="text-center">
-                      <h4 className="text-5xl font-brand text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-orange-500 uppercase mb-8 drop-shadow-lg animate-pulse">Steal Chance!</h4>
-                      <div className="flex gap-6 justify-center items-center">
-                          {gameState.teams.map((t, i) => i !== gameState.currentTurnTeamIndex ? (
-                            <button key={t.id} onClick={() => award(t.id, 1)} className="px-10 py-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[2rem] font-brand text-2xl shadow-2xl hover:scale-110 transition-all border-4 border-indigo-400/30">
-                              {t.name} +1
-                            </button>
-                          ) : null)}
-                          <button onClick={() => setStealMode(false)} className="px-8 py-4 text-slate-400 font-bold uppercase text-xs tracking-[0.2em] hover:text-white transition-colors">Cancel</button>
+                <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-md flex items-center justify-center animate-in fade-in duration-200">
+                   <div className="text-center space-y-8">
+                      <h3 className="text-6xl font-brand text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-orange-500 animate-pulse drop-shadow-2xl">STEAL CHANCE</h3>
+                      <div className="flex gap-6 justify-center">
+                         {gameState.teams.map((t, i) => i !== gameState.currentTurnTeamIndex ? (
+                           <button key={t.id} onClick={() => award(t.id, 1)} className="px-12 py-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[2.5rem] font-brand text-3xl shadow-2xl hover:scale-105 transition-transform border-4 border-indigo-400/20">{t.name} +1</button>
+                         ) : null)}
                       </div>
-                    </div>
+                      <button onClick={() => setStealMode(false)} className="text-slate-500 hover:text-white font-bold uppercase tracking-[0.2em] text-sm mt-8">Cancel Steal</button>
+                   </div>
                 </div>
             )}
           </div>
         )}
 
-        {/* ... (Rest of the views) ... */}
-
-        {view === 'library' && (
-          <div className="max-w-7xl mx-auto w-full space-y-8 animate-in slide-in-from-bottom-8 duration-500">
-             {/* ... Library content ... */}
-             <div className="flex flex-col md:flex-row justify-between items-end gap-6 bg-gradient-to-r from-indigo-900/80 to-purple-900/80 p-8 rounded-[3rem] text-white shadow-2xl backdrop-blur-xl border border-white/10">
-                <div>
-                    <h2 className="text-6xl font-brand mb-2 uppercase text-transparent bg-clip-text bg-gradient-to-b from-white to-indigo-200">Music Vault</h2>
-                    <p className="font-mono text-sm tracking-widest uppercase opacity-70 border-l-4 border-fuchsia-500 pl-4">{songs.length} Tracks • {collections.length} Collections</p>
+        {/* Other Views Container (Standard Padding) */}
+        {(view !== 'home' && view !== 'game') && (
+           <div className="max-w-7xl mx-auto w-full animate-in fade-in duration-500">
+              {view === 'library' && (
+                /* Compact Library View */
+                <div className="space-y-6">
+                   {/* ... Keep library code logic, just styling tweaks handled by global layout ... */}
+                   <div className="flex flex-col md:flex-row justify-between items-end gap-6 bg-gradient-to-r from-indigo-900/80 to-purple-900/80 p-8 rounded-[3rem] text-white shadow-2xl backdrop-blur-xl border border-white/10">
+                      <div><h2 className="text-6xl font-brand mb-2 text-white">Library</h2><p className="font-mono text-sm tracking-widest uppercase opacity-70 border-l-4 border-fuchsia-500 pl-4">{songs.length} Tracks</p></div>
+                      <div className="flex gap-3">
+                        <button onClick={handleImportClick} className="px-6 py-3 bg-fuchsia-600 rounded-xl font-bold flex items-center gap-2 text-white text-xs uppercase tracking-widest"><FolderPlus size={16}/> Import</button>
+                        <button onClick={relinkLibrary} className="px-6 py-3 bg-indigo-600 rounded-xl font-bold flex items-center gap-2 text-white text-xs uppercase tracking-widest"><Link2 size={16}/> Link</button>
+                      </div>
+                   </div>
+                   <div className="relative"><Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input className="w-full glass-panel rounded-full py-4 pl-14 pr-6 text-lg outline-none text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 ring-indigo-500/50 transition-all" placeholder="Search..." value={librarySearch} onChange={e => setLibrarySearch(e.target.value)} /></div>
+                   <div className="glass-panel rounded-[2rem] overflow-hidden">
+                     <div className="max-h-[60vh] overflow-y-auto custom-scrollbar">
+                       <table className="w-full text-left">
+                          <tbody className="divide-y divide-slate-200/50 dark:divide-white/5">
+                            {filteredSongs.map(s => (
+                              <tr key={s.id} className="hover:bg-indigo-500/5 transition-colors group">
+                                <td className="p-6"><p className="font-bold text-slate-800 dark:text-white">{s.title}</p><p className="text-xs font-mono text-slate-500">{s.filename}</p></td>
+                                <td className="p-6 text-right"><div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => togglePlay(s.id)} className="p-2 bg-slate-200 dark:bg-white/10 rounded-lg hover:bg-indigo-500 hover:text-white transition-colors"><Play size={16}/></button><button onClick={() => handleDeleteSong(s.id)} className="p-2 bg-rose-100 dark:bg-rose-900/20 text-rose-500 rounded-lg hover:bg-rose-600 hover:text-white transition-colors"><Trash2 size={16}/></button></div></td>
+                              </tr>
+                            ))}
+                          </tbody>
+                       </table>
+                     </div>
+                   </div>
                 </div>
-                <div className="flex gap-3">
-                  <button onClick={() => setView('home')} className="px-6 py-4 bg-white/10 hover:bg-white/20 rounded-2xl font-bold uppercase text-xs tracking-widest border border-white/10 transition-all backdrop-blur-md">Back</button>
-                  <button onClick={handleImportClick} className="px-8 py-4 bg-fuchsia-600 hover:bg-fuchsia-500 rounded-2xl font-bold flex items-center gap-2 transition-all shadow-xl text-white uppercase text-xs tracking-widest"><FolderPlus size={18}/> Import</button>
-                  <button onClick={relinkLibrary} className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 rounded-2xl font-bold flex items-center gap-2 transition-all shadow-xl text-white uppercase text-xs tracking-widest"><Link2 size={18}/> Link</button>
-                </div>
-             </div>
-             
-             <div className="relative z-10">
-                 <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
-                 <input className="w-full glass-panel rounded-[2.5rem] py-6 pl-16 pr-8 text-xl focus:border-indigo-500 outline-none shadow-lg transition-all text-slate-900 dark:text-white placeholder:text-slate-400" placeholder="Search your tracks..." value={librarySearch} onChange={e => setLibrarySearch(e.target.value)} />
-             </div>
-
-             <div className="glass-panel rounded-[3rem] overflow-hidden shadow-2xl">
-               <div className="max-h-[60vh] overflow-y-auto custom-scrollbar">
-                 <table className="w-full text-left">
-                    <thead className="bg-slate-50/90 dark:bg-black/40 sticky top-0 backdrop-blur-xl border-b border-slate-200 dark:border-white/10 z-10">
-                      <tr><th className="p-8 font-black text-xs text-slate-400 tracking-[0.3em] uppercase">Track Title</th><th className="p-8 font-black text-xs text-slate-400 tracking-[0.3em] uppercase">Collection</th><th className="p-8 font-black text-xs text-slate-400 tracking-[0.3em] uppercase text-right">Status</th><th className="p-8 w-24"></th></tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                      {filteredSongs.map(s => (
-                        <tr key={s.id} className="hover:bg-indigo-500/10 transition-colors group">
-                          <td className="p-8"><p className="font-bold text-xl mb-1 text-slate-800 dark:text-white">{s.title}</p><p className="text-xs font-mono text-slate-500 dark:text-slate-400 opacity-70">{s.filename}</p></td>
-                          <td className="p-8"><span className="px-4 py-1.5 bg-white/50 dark:bg-white/5 rounded-lg text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest border border-slate-200 dark:border-white/10">{s.category || 'General'}</span></td>
-                          <td className="p-8 text-right"><span className={`text-[10px] font-black tracking-[0.2em] uppercase px-4 py-2 rounded-full border ${s.hasLocalAudio ? 'text-emerald-600 bg-emerald-500/10 border-emerald-500/20' : 'text-rose-600 bg-rose-500/10 border-rose-200 animate-pulse'}`}>{s.hasLocalAudio ? 'Ready' : 'Missing'}</span></td>
-                          <td className="p-8 text-right"><div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-all"><button onClick={() => togglePlay(s.id)} className={`p-3 rounded-2xl transition-all shadow-lg ${playingSongId === s.id && isPlaying ? 'bg-indigo-600 text-white animate-pulse' : 'bg-white dark:bg-white/10 text-slate-600 dark:text-white'}`}>{playingSongId === s.id && isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}</button><button onClick={() => handleDeleteSong(s.id)} className="p-3 bg-white dark:bg-white/10 rounded-2xl hover:bg-rose-600 hover:text-white transition-all text-rose-500"><Trash2 size={20}/></button></div></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                 </table>
-               </div>
-             </div>
-          </div>
-        )}
-
-        {view === 'setBuilder' && setDraft && (
-           <div className="max-w-7xl mx-auto w-full space-y-8 animate-in fade-in duration-300">
-              {/* ... Set Builder Content ... */}
-              <div className="flex flex-col md:flex-row justify-between items-end gap-6 bg-glass p-6 rounded-[2rem]">
-                <div>
-                    <h2 className="text-5xl font-brand mb-2 text-slate-900 dark:text-white uppercase drop-shadow-sm">Set Builder</h2>
-                    <p className="font-mono text-xs tracking-[0.2em] uppercase opacity-60 bg-white/50 dark:bg-black/30 w-fit px-4 py-2 rounded-lg">Draft: {setDraft.name || 'Untitled'} • {setDraft.songs.length} Selected</p>
-                </div>
-                <div className="flex gap-3">
-                  <button onClick={() => setView('home')} className="px-6 py-4 glass-panel rounded-2xl font-bold uppercase text-xs tracking-widest flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:bg-white/80 dark:hover:bg-white/20 transition-colors"><ArrowLeft size={18} /> Back</button>
-                  <button onClick={saveSet} className="px-8 py-4 bg-emerald-600 rounded-2xl font-brand text-lg flex items-center gap-3 hover:bg-emerald-500 transition-all shadow-xl text-white uppercase active:scale-95"><Save size={22}/> Save Game</button>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 relative">
-                 {/* Left Column: Game Details and Song List */}
-                 <div className="space-y-6">
-                    <div className="p-8 glass-panel rounded-[2.5rem] space-y-6 shadow-xl"><h3 className="text-xs font-black uppercase tracking-[0.4em] text-slate-400 border-b border-slate-200 dark:border-white/10 pb-4">Game Config</h3><input className="w-full bg-white/50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl p-5 text-xl font-bold focus:border-indigo-500 outline-none text-slate-800 dark:text-white placeholder:text-slate-400" placeholder="Game Name..." value={setDraft.name} onChange={e => setSetDraft({...setDraft, name: e.target.value})} /><textarea className="w-full bg-white/50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl p-5 text-sm focus:border-indigo-500 outline-none h-24 resize-none text-slate-800 dark:text-white placeholder:text-slate-400" placeholder="Host Notes..." value={setDraft.description} onChange={e => setSetDraft({...setDraft, description: e.target.value})} /></div>
-                    
-                    <div className="space-y-4">
-                       <div className="flex justify-between items-center ml-4"><h3 className="text-xs font-black uppercase tracking-[0.4em] text-slate-400 bg-white/80 dark:bg-black/40 px-3 py-1 rounded-md backdrop-blur-sm">Set Order</h3></div>
-                       <div className="space-y-3 max-h-[600px] overflow-y-auto pr-3 custom-scrollbar">
-                       {setDraft.songs.map((ss, idx) => {
-                         const s = songs.find(x => x.id === ss.songId);
-                         if (!s) return null;
-                         const isEditing = editingSongId === ss.songId;
-
-                         return (
-                           <React.Fragment key={ss.songId}>
-                             <div className={`p-6 rounded-[2rem] border transition-all duration-300 flex items-center justify-between shadow-sm backdrop-blur-md ${isEditing ? 'bg-indigo-600 border-indigo-500 shadow-xl ring-4 ring-indigo-500/20 scale-[1.02] z-10' : 'bg-white/80 dark:bg-slate-900/60 border-white/40 dark:border-white/5 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-white dark:hover:bg-slate-800'}`}>
-                               <div className="flex items-center gap-5 truncate mr-4">
-                                 <span className={`font-mono text-sm font-black shrink-0 ${isEditing ? 'text-indigo-200' : 'text-slate-300'}`}>{idx + 1}</span>
-                                 <div className="truncate"><p className={`font-bold text-lg truncate ${isEditing ? 'text-white' : 'text-slate-800 dark:text-white'}`}>{s.title}</p></div>
-                               </div>
-                               <div className="flex gap-2 shrink-0">
-                                 <button onClick={() => setEditingSongId(isEditing ? null : ss.songId)} className={`p-3 rounded-xl transition-all ${ss.isConfigured ? 'bg-emerald-500 text-white shadow-lg' : isEditing ? 'bg-white text-indigo-600 shadow-lg' : 'bg-slate-100 dark:bg-white/10 text-slate-500 hover:text-indigo-600'}`} title={ss.isConfigured ? "Regions Saved" : "Configure"}>
-                                   {ss.isConfigured ? <CheckCircle size={18} strokeWidth={3} /> : <Settings size={18} strokeWidth={2.5}/>}
-                                 </button>
-                                 <button onClick={() => { if(isEditing) setEditingSongId(null); setSetDraft({...setDraft, songs: setDraft.songs.filter(x => x.songId !== ss.songId)})}} className={`p-3 rounded-xl transition-colors ${isEditing ? 'text-indigo-200 hover:text-white' : 'text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20'}`}><XCircle size={18}/></button>
-                               </div>
-                             </div>
-                           </React.Fragment>
-                         );
-                       })}
-                    </div></div>
-                 </div>
-
-                 <div className="space-y-8 h-full">
-                    {editingSongId && editingSongConfig ? (
-                       <div className="sticky top-24 animate-in slide-in-from-right-8 fade-in duration-300 z-20">
-                           <div className="p-6 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-[2.5rem] border-2 border-indigo-500 shadow-2xl space-y-6 relative overflow-hidden">
-                              <div className="absolute top-0 right-0 w-48 h-48 bg-fuchsia-500/20 rounded-full blur-[60px] -mr-10 -mt-10 pointer-events-none animate-pulse-slow" />
-                              
-                              <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/10 pb-4 relative z-10">
-                                  <div>
-                                      <div className="flex items-center gap-2 text-indigo-500 mb-1">
-                                         <Edit3 size={14} />
-                                         <h3 className="text-xs font-black uppercase tracking-[0.2em]">Region Editor</h3>
-                                      </div>
-                                      <p className="text-lg font-bold text-slate-800 dark:text-white truncate max-w-[250px] leading-tight">{songs.find(s => s.id === editingSongId)?.title}</p>
+              )}
+              {view === 'setBuilder' && setDraft && (
+                 /* ... Set Builder Logic (Keep functionality, ensure wrapper styles match) ... */
+                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-[calc(100vh-140px)]">
+                    <div className="flex flex-col gap-6 h-full overflow-hidden">
+                       <div className="glass-panel p-6 rounded-[2rem] space-y-4 shrink-0">
+                          <input className="w-full bg-transparent text-3xl font-brand text-slate-900 dark:text-white placeholder:text-slate-400 outline-none border-b border-slate-200 dark:border-white/10 pb-2" placeholder="Game Name" value={setDraft.name} onChange={e => setSetDraft({...setDraft, name: e.target.value})} />
+                          <div className="flex justify-between items-center"><span className="text-xs font-bold uppercase text-slate-500">{setDraft.songs.length} Tracks</span><button onClick={saveSet} className="px-6 py-2 bg-emerald-500 text-white rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-emerald-600 transition-colors">Save Game</button></div>
+                       </div>
+                       <div className="flex-grow overflow-y-auto glass-panel rounded-[2rem] p-2 space-y-2 custom-scrollbar">
+                          {setDraft.songs.map((ss, idx) => {
+                             const s = songs.find(x => x.id === ss.songId);
+                             if(!s) return null;
+                             const isActive = editingSongId === ss.songId;
+                             return (
+                               <div key={ss.songId} className={`p-4 rounded-xl flex items-center gap-4 transition-all ${isActive ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white/50 dark:bg-white/5 hover:bg-white/80 dark:hover:bg-white/10'}`}>
+                                  <span className="font-mono font-bold opacity-50">{idx+1}</span>
+                                  <div className="flex-grow truncate font-bold">{s.title}</div>
+                                  <div className="flex gap-2">
+                                     <button onClick={() => setEditingSongId(isActive ? null : ss.songId)} className={`p-2 rounded-lg ${isActive ? 'bg-white text-indigo-600' : 'bg-slate-200 dark:bg-white/10'}`}><Settings size={14}/></button>
+                                     <button onClick={() => setSetDraft({...setDraft, songs: setDraft.songs.filter(x => x.songId !== ss.songId)})} className={`p-2 rounded-lg ${isActive ? 'text-indigo-200' : 'text-rose-400 hover:bg-rose-100'}`}><X size={14}/></button>
                                   </div>
-                                  <button onClick={() => setEditingSongId(null)} className="px-4 py-2 bg-slate-100 dark:bg-white/10 rounded-xl text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 hover:bg-rose-100 hover:text-rose-600 transition-colors">Close</button>
-                              </div>
-                              
-                              <WaveformEditorLoader 
-                                  songId={editingSongId} 
-                                  clipStart={editingSongConfig.clipStart || 0} 
-                                  clipEnd={editingSongConfig.clipEnd || 5} 
-                                  hintStart={editingSongConfig.hintStart || 5} 
-                                  hintEnd={editingSongConfig.hintEnd || 10}
-                                  introStart={editingSongConfig.introStart || 0}
-                                  introEnd={editingSongConfig.introEnd || 5}
-                                  bonusStart={editingSongConfig.bonusStart || 10}
-                                  bonusEnd={editingSongConfig.bonusEnd || 15}
-
-                                  onSave={(c, h, i, b) => { 
-                                    setSetDraft({...setDraft, songs: setDraft.songs.map(x => x.songId === editingSongId ? {
-                                      ...x, 
-                                      clipStart: c.start, clipEnd: c.end, 
-                                      hintStart: h.start, hintEnd: h.end,
-                                      introStart: i.start, introEnd: i.end,
-                                      bonusStart: b.start, bonusEnd: b.end,
-                                      isConfigured: true
-                                    } : x)}); 
-                                    setEditingSongId(null); 
-                                  }} 
-                                  maxDuration={30} 
-                              />
-                           </div>
+                               </div>
+                             );
+                          })}
                        </div>
-                    ) : (
-                       <div className="p-8 glass-panel rounded-[2.5rem] space-y-6 shadow-lg relative overflow-hidden transition-colors sticky top-24">
-                           <div className="flex justify-between items-center relative z-10 border-b border-slate-200 dark:border-white/10 pb-4">
-                               <h3 className="text-xs font-black uppercase tracking-[0.4em] text-slate-400">Library</h3>
-                               <button onClick={toggleSelectAll} className="flex items-center gap-2 text-[10px] font-black uppercase text-indigo-600 border border-indigo-500/20 px-4 py-2 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors">{selectedPickerIds.size === filteredSongs.length && filteredSongs.length > 0 ? <CheckSquare size={16} /> : <Square size={16} />} Select All</button>
-                           </div>
-                           <div className="relative">
-                               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                               <input className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl py-4 pl-12 pr-6 text-sm outline-none text-slate-800 dark:text-white focus:border-indigo-500 transition-all placeholder:text-slate-400" placeholder="Filter by name..." value={librarySearch} onChange={e => setLibrarySearch(e.target.value)} />
-                           </div>
-                           <div className="space-y-2 max-h-[400px] overflow-y-auto pr-3 custom-scrollbar">
-                               {filteredSongs.map(s => {
-                                 const alreadyInSet = setDraft.songs.some(x => x.songId === s.id);
-                                 const isSelected = selectedPickerIds.has(s.id);
-                                 return (<div key={s.id} className={`w-full p-4 rounded-2xl border flex items-center justify-between transition-all cursor-pointer ${alreadyInSet ? 'opacity-40 pointer-events-none' : isSelected ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-500' : 'bg-white/50 dark:bg-black/10 border-transparent hover:border-slate-300 dark:hover:border-slate-600'}`} onClick={() => !alreadyInSet && toggleSongSelection(s.id)}><div className="flex items-center gap-4 flex-grow truncate"><div className="text-indigo-600">{isSelected ? <CheckSquare size={20} /> : <Square size={20} className="text-slate-300 dark:text-slate-600" />}</div><div className="truncate text-left"><p className="font-bold text-sm text-slate-800 dark:text-white truncate">{s.title}</p></div></div></div>);
-                               })}
-                           </div>
-                           {selectedPickerIds.size > 0 && (<button onClick={addSelectedToSet} className="w-full py-5 bg-gradient-to-r from-indigo-600 to-fuchsia-600 rounded-2xl font-brand text-lg text-white shadow-xl flex items-center justify-center gap-3 hover:scale-[1.02] transition-transform"><Plus size={24} /> Add {selectedPickerIds.size} Tracks</button>)}
-                       </div>
-                    )}
+                    </div>
+                    <div className="h-full overflow-hidden flex flex-col gap-6">
+                       {editingSongId && editingSongConfig ? (
+                          <div className="glass-panel p-6 rounded-[2rem] shadow-2xl relative h-full flex flex-col">
+                             <div className="flex justify-between items-center mb-6"><h3 className="font-brand text-xl dark:text-white">Region Editor</h3><button onClick={() => setEditingSongId(null)} className="text-xs font-bold uppercase bg-slate-200 dark:bg-white/10 px-3 py-1 rounded-lg">Close</button></div>
+                             <WaveformEditorLoader songId={editingSongId} clipStart={editingSongConfig.clipStart||0} clipEnd={editingSongConfig.clipEnd||5} hintStart={editingSongConfig.hintStart||5} hintEnd={editingSongConfig.hintEnd||10} introStart={editingSongConfig.introStart||0} introEnd={editingSongConfig.introEnd||5} bonusStart={editingSongConfig.bonusStart||10} bonusEnd={editingSongConfig.bonusEnd||15} onSave={(c, h, i, b) => { setSetDraft({...setDraft, songs: setDraft.songs.map(x => x.songId === editingSongId ? { ...x, clipStart: c.start, clipEnd: c.end, hintStart: h.start, hintEnd: h.end, introStart: i.start, introEnd: i.end, bonusStart: b.start, bonusEnd: b.end, isConfigured: true } : x)}); setEditingSongId(null); }} maxDuration={30} />
+                          </div>
+                       ) : (
+                          <div className="glass-panel p-6 rounded-[2rem] h-full flex flex-col">
+                             <div className="flex justify-between items-center mb-4"><h3 className="font-brand text-lg dark:text-white">Add Tracks</h3><button onClick={toggleSelectAll} className="text-[10px] font-bold uppercase bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 px-3 py-1 rounded-lg">Select All</button></div>
+                             <input className="w-full bg-slate-100 dark:bg-black/20 rounded-xl py-3 px-4 mb-4 text-sm outline-none" placeholder="Search library..." value={librarySearch} onChange={e => setLibrarySearch(e.target.value)} />
+                             <div className="flex-grow overflow-y-auto space-y-2 custom-scrollbar pr-2">
+                                {filteredSongs.map(s => {
+                                   const inSet = setDraft.songs.some(x => x.songId === s.id);
+                                   const sel = selectedPickerIds.has(s.id);
+                                   return (
+                                      <div key={s.id} onClick={() => !inSet && toggleSongSelection(s.id)} className={`p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition-all ${inSet ? 'opacity-40' : sel ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-500' : 'border-transparent hover:bg-slate-50 dark:hover:bg-white/5'}`}>
+                                         {sel ? <CheckSquare size={18} className="text-indigo-500"/> : <Square size={18} className="text-slate-400"/>}
+                                         <div className="truncate text-sm font-bold dark:text-white">{s.title}</div>
+                                      </div>
+                                   )
+                                })}
+                             </div>
+                             {selectedPickerIds.size > 0 && <button onClick={addSelectedToSet} className="w-full mt-4 py-3 bg-indigo-600 text-white rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg hover:bg-indigo-500 transition-colors">Add {selectedPickerIds.size}</button>}
+                          </div>
+                       )}
+                    </div>
                  </div>
-              </div>
-           </div>
-        )}
-
-        {/* ... (Rest of the views remain the same) ... */}
-        {view === 'history' && (
-          <div className="max-w-4xl mx-auto w-full space-y-12 animate-in fade-in">
-             <div className="text-center">
-                <h2 className="text-7xl font-brand text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-600 uppercase mb-4 drop-shadow-sm">Hall of Fame</h2>
-                <div className="h-1 w-24 bg-gradient-to-r from-amber-400 to-orange-600 mx-auto rounded-full"></div>
-             </div>
-             
-             <div className="space-y-8">
-              {history.map(h => (
-                <div key={h.id} className="p-10 glass-panel rounded-[3rem] flex flex-col md:flex-row justify-between items-center gap-10 shadow-lg hover:scale-[1.02] transition-transform duration-300">
-                   <div className="text-center md:text-left">
-                     <h4 className="text-3xl font-brand text-slate-800 dark:text-white truncate max-w-[300px] mb-2">{h.setName}</h4>
-                     <p className="text-slate-500 font-mono text-sm uppercase tracking-widest bg-slate-100 dark:bg-white/5 px-4 py-1 rounded-full w-fit">{new Date(h.dateTime).toLocaleDateString()}</p>
-                   </div>
-                   <div className="flex gap-4 shrink-0 overflow-x-auto pb-2">
-                     {h.teams.map((t, idx) => (
-                       <div key={t.id} className={`px-8 py-6 rounded-[2rem] border flex flex-col items-center shadow-md min-w-[140px] ${idx === 0 ? 'bg-amber-100/50 dark:bg-amber-900/20 border-amber-500/30' : 'bg-white/50 dark:bg-white/5 border-white/10'}`}>
-                         <span className="text-[10px] opacity-60 uppercase tracking-widest mb-2 truncate max-w-[80px] font-black">{t.name}</span>
-                         <span className={`text-5xl font-brand ${idx === 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-700 dark:text-slate-300'}`}>{t.score}</span>
+              )}
+              {view === 'history' && (
+                 /* History List (Simplified) */
+                 <div className="space-y-6">
+                    <h2 className="text-5xl font-brand text-center mb-12 dark:text-white">Hall of Fame</h2>
+                    {history.map(h => (
+                       <div key={h.id} className="glass-panel p-8 rounded-[2.5rem] flex flex-col md:flex-row justify-between items-center gap-8">
+                          <div className="text-center md:text-left"><h4 className="text-2xl font-bold dark:text-white">{h.setName}</h4><p className="text-sm font-mono text-slate-500">{new Date(h.dateTime).toLocaleDateString()}</p></div>
+                          <div className="flex gap-4">{h.teams.map((t, i) => (<div key={t.id} className={`px-6 py-4 rounded-2xl border flex flex-col items-center min-w-[100px] ${i===0?'bg-amber-100/50 border-amber-200':'bg-white/50 border-slate-100'}`}><span className="text-[10px] font-bold uppercase tracking-widest opacity-60">{t.name}</span><span className="text-3xl font-brand text-slate-800">{t.score}</span></div>))}</div>
                        </div>
-                     ))}
-                   </div>
-                </div>
-              ))}
-             </div>
-             <div className="flex justify-center"><button onClick={() => setView('home')} className="px-12 py-5 glass-panel rounded-full font-brand text-slate-500 dark:text-slate-400 uppercase tracking-widest hover:bg-white transition-colors shadow-lg">Return Home</button></div>
-          </div>
+                    ))}
+                 </div>
+              )}
+           </div>
         )}
       </main>
 
-      {/* NEW: Collection Name Modal */}
+      {/* Modals (Import / Install) - Kept mostly same but ensured z-index higher */}
       {showCollectionModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[200] flex items-center justify-center p-6 animate-in fade-in">
-           {/* ... Modal Content ... */}
-           <div className="bg-white dark:bg-slate-900 p-10 rounded-[3rem] border border-slate-200 dark:border-white/10 shadow-3xl text-center space-y-8 max-w-lg w-full relative overflow-hidden">
-             <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 to-fuchsia-500"></div>
-             <div className="p-6 bg-indigo-50 dark:bg-indigo-900/20 rounded-full w-fit mx-auto"><FolderPlus size={40} className="text-indigo-600 dark:text-indigo-400" /></div>
-             <div>
-                <h3 className="text-3xl font-brand text-slate-900 dark:text-white uppercase mb-2">Organize Tracks</h3>
-                <p className="text-slate-500 dark:text-slate-400">Importing {pendingFiles.length} files. Group them into a collection:</p>
-             </div>
-             <input autoFocus className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-center text-lg font-bold focus:border-indigo-600 outline-none text-slate-900 dark:text-white placeholder:text-slate-400" placeholder="e.g. 80s Hits, TV Themes..." value={collectionNameInput} onChange={e => setCollectionNameInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && confirmImport()} />
-             <div className="grid grid-cols-2 gap-4">
-               <button onClick={() => { setShowCollectionModal(false); setPendingFiles([]); }} className="py-4 bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400 rounded-2xl font-bold uppercase hover:bg-slate-200 dark:hover:bg-white/10 transition-colors">Cancel</button>
-               <button onClick={confirmImport} className="py-4 bg-indigo-600 text-white rounded-2xl font-bold uppercase hover:bg-indigo-500 transition-colors shadow-lg">Import Tracks</button>
-             </div>
+        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
+           <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] w-full max-w-md text-center space-y-6">
+              <FolderPlus size={48} className="mx-auto text-indigo-500" />
+              <h3 className="text-2xl font-brand dark:text-white">Group Tracks</h3>
+              <input autoFocus className="w-full bg-slate-100 dark:bg-black/40 p-4 rounded-xl text-center text-lg font-bold outline-none border-2 border-transparent focus:border-indigo-500" placeholder="Collection Name" value={collectionNameInput} onChange={e => setCollectionNameInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && confirmImport()} />
+              <div className="grid grid-cols-2 gap-4"><button onClick={() => setShowCollectionModal(false)} className="py-3 bg-slate-200 dark:bg-white/10 rounded-xl font-bold text-slate-600 dark:text-slate-300">Cancel</button><button onClick={confirmImport} className="py-3 bg-indigo-600 text-white rounded-xl font-bold">Import</button></div>
            </div>
         </div>
       )}
-
+      
       {isImporting && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-xl z-[200] flex items-center justify-center p-6 animate-in fade-in">
-           {/* ... Import Progress ... */}
-           <div className="bg-white dark:bg-slate-900 p-12 rounded-[4rem] border border-slate-200 dark:border-white/10 shadow-3xl text-center space-y-10 max-w-md w-full relative">
-            <div className="relative w-40 h-40 mx-auto">
-              <svg className="w-full h-full -rotate-90"><circle cx="80" cy="80" r="75" fill="transparent" stroke="currentColor" strokeWidth="10" className="text-slate-100 dark:text-slate-800" /><circle cx="80" cy="80" r="75" fill="transparent" stroke="currentColor" strokeWidth="10" strokeDasharray="471" strokeDashoffset={471 - (4.71 * importProgress)} strokeLinecap="round" className="text-indigo-600 transition-all duration-300" /></svg>
-              <div className="absolute inset-0 flex items-center justify-center flex-col"><Music size={48} className="text-indigo-600 animate-pulse mb-1" /><span className="text-xl font-brand text-indigo-600">{importProgress}%</span></div>
-            </div>
-            <div className="space-y-4">
-              <h3 className="text-2xl font-brand text-slate-900 dark:text-white uppercase tracking-tight">Updating Vault</h3>
-              <p className="text-slate-400 font-mono text-[10px] uppercase tracking-[0.2em] truncate px-4">{importingFileName || 'Processing...'}</p>
-              <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-indigo-600 transition-all duration-300" style={{width: `${importProgress}%`}} /></div>
-            </div>
-            <p className="text-[10px] text-slate-400 dark:text-slate-600 leading-relaxed italic uppercase tracking-widest">Standalone performance enabled...</p>
-          </div>
-        </div>
+         <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center flex-col gap-6">
+            <Loader2 size={64} className="text-indigo-500 animate-spin" />
+            <h3 className="text-2xl font-brand text-white tracking-widest animate-pulse">IMPORTING...</h3>
+            <div className="w-64 h-2 bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-indigo-500 transition-all duration-300" style={{width: `${importProgress}%`}}></div></div>
+            <p className="text-slate-500 font-mono text-xs">{importingFileName}</p>
+         </div>
       )}
 
       {showInstall && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-6 backdrop-blur-md animate-in fade-in">
-           {/* ... Install Modal ... */}
-           <div className="max-w-2xl w-full bg-white dark:bg-slate-900 rounded-[4rem] border border-slate-200 dark:border-white/10 p-16 shadow-3xl space-y-10 text-center relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-fuchsia-500 to-indigo-500"></div>
-            <div className="p-8 bg-indigo-50 dark:bg-indigo-900/20 rounded-full w-fit mx-auto animate-pulse">
-              <Download size={64} className="text-indigo-600 dark:text-indigo-400" />
+         <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 p-10 rounded-[3rem] w-full max-w-2xl text-center relative">
+               <button onClick={() => setShowInstall(false)} className="absolute top-6 right-6 p-2 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-rose-100 text-slate-400 hover:text-rose-500"><X size={20}/></button>
+               <Download size={64} className="mx-auto text-indigo-500 mb-6" />
+               <h2 className="text-4xl font-brand mb-4 dark:text-white">Install App</h2>
+               <p className="text-lg text-slate-600 dark:text-slate-400 mb-8">Get the best performance by installing MelodyMatch as a native app.</p>
+               <div className="grid md:grid-cols-2 gap-6">
+                  <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl"><h4 className="font-bold mb-2 dark:text-white">Windows / Android</h4><button onClick={handleInstallClick} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg hover:bg-indigo-500">Install Now</button></div>
+                  <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl"><h4 className="font-bold mb-2 dark:text-white">iOS</h4><p className="text-xs text-slate-500 dark:text-slate-400">Share &gt; Add to Home Screen</p></div>
+               </div>
             </div>
-            <div className="space-y-4">
-              <h2 className="text-4xl font-brand text-slate-900 dark:text-white uppercase">Install App</h2>
-              <p className="text-slate-600 dark:text-slate-400 text-lg max-w-md mx-auto leading-relaxed">MelodyMatch is a <strong>Progressive Web App (PWA)</strong>. It installs directly from your browser—no app store required.</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-[2rem] border border-slate-200 dark:border-white/10 flex flex-col items-center gap-4">
-                <div className="flex gap-3 text-slate-400"><Monitor size={24} /> <Smartphone size={24} /></div>
-                <h3 className="font-bold text-slate-800 dark:text-white uppercase tracking-widest text-sm">Windows & Android</h3>
-                {installError ? (
-                  <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-700/30 rounded-xl text-amber-600 dark:text-amber-400 text-xs font-bold leading-relaxed text-left flex items-start gap-3"><AlertCircle size={32} className="shrink-0" />{installError}</div>
-                ) : (
-                  <>
-                    <button onClick={handleInstallClick} className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase transition-colors shadow-lg text-xs tracking-widest flex items-center justify-center gap-2"><Download size={16} /> Install Now</button>
-                    {!deferredPrompt && <p className="text-[10px] text-slate-400 text-center">If nothing happens, install directly from your browser's address bar.</p>}
-                  </>
-                )}
-              </div>
-              <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-[2rem] border border-slate-200 dark:border-white/10 flex flex-col items-center gap-4">
-                <div className="flex gap-3 text-slate-400"><Tablet size={24} /></div>
-                <h3 className="font-bold text-slate-800 dark:text-white uppercase tracking-widest text-sm">iPad & iPhone</h3>
-                <div className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed space-y-2 text-left w-full">
-                   <div className="flex items-center gap-2">1. Open in <strong>Safari</strong>.</div>
-                   <div className="flex items-center gap-2">2. Tap <Share size={14} className="text-indigo-500"/> <strong>Share</strong>.</div>
-                   <div className="flex items-center gap-2">3. Tap <PlusSquare size={14} className="text-indigo-500"/> <strong>Add to Home Screen</strong>.</div>
-                </div>
-              </div>
-            </div>
-            <button onClick={() => { setShowInstall(false); setInstallError(null); }} className="text-slate-400 font-black uppercase text-xs tracking-widest pt-4 hover:text-slate-600 dark:hover:text-slate-200">Dismiss</button>
-          </div>
-        </div>
+         </div>
       )}
     </div>
   );
@@ -1048,7 +710,7 @@ const App: React.FC = () => {
 const WaveformEditorLoader: React.FC<{ songId: string; clipStart: number; clipEnd: number; hintStart: number; hintEnd: number; introStart: number; introEnd: number; bonusStart: number; bonusEnd: number; onSave: (clip: { start: number; end: number }, hint: { start: number; end: number }, intro: { start: number; end: number }, bonus: { start: number; end: number }) => void; maxDuration: number; }> = ({ songId, clipStart, clipEnd, hintStart, hintEnd, introStart, introEnd, bonusStart, bonusEnd, onSave, maxDuration }) => {
   const [url, setUrl] = useState<string>('');
   useEffect(() => { platformBridge.getAudioUrl(songId).then(u => setUrl(u || '')); }, [songId]);
-  if (!url) return <div className="p-24 text-center bg-white dark:bg-slate-950 rounded-[3rem] border border-slate-200 text-slate-300 font-brand text-xl animate-pulse uppercase">Syncing...</div>;
+  if (!url) return <div className="p-12 text-center text-slate-400 animate-pulse font-mono uppercase tracking-widest">Loading Audio...</div>;
   return <WaveformEditor key={songId} url={url} clipStart={clipStart} clipEnd={clipEnd} hintStart={hintStart} hintEnd={hintEnd} introStart={introStart} introEnd={introEnd} bonusStart={bonusStart} bonusEnd={bonusEnd} onSave={onSave} maxDuration={maxDuration} />;
 };
 
