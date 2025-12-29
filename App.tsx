@@ -67,7 +67,11 @@ import {
   WifiOff,
   Filter,
   Wand2,
-  Pencil
+  Pencil,
+  BookOpen,
+  HelpCircle,
+  MousePointerClick,
+  Layers
 } from 'lucide-react';
 
 import { GameResult, GameSet, GameSetSong, GameState, Song, Team, Platform } from './types';
@@ -77,7 +81,7 @@ import { autoMarkersService } from './services/autoMarkers';
 import WaveformEditor from './components/WaveformEditor';
 import Scoreboard from './components/Scoreboard';
 
-type View = 'home' | 'library' | 'setBuilder' | 'game' | 'history';
+type View = 'home' | 'library' | 'setBuilder' | 'game' | 'history' | 'help';
 type Theme = 'light' | 'dark';
 
 const stripExt = (name: string) => name.replace(/\.[^/.]+$/, '');
@@ -574,7 +578,7 @@ const App: React.FC = () => {
         const result: GameResult = { 
             id: crypto.randomUUID(), 
             dateTime: Date.now(), 
-            setId: activeSet.id,
+            setId: activeSet.id, 
             setName: activeSet.name, 
             teams: gameState.teams 
         }; 
@@ -647,6 +651,9 @@ const App: React.FC = () => {
                    <div className="flex items-center justify-center lg:justify-start gap-4">
                       <div className="h-1.5 w-24 bg-gradient-to-r from-indigo-500 to-fuchsia-500 rounded-full"></div>
                       <p className="text-sm font-bold uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">The Ultimate Music Quiz</p>
+                      <button onClick={() => setView('help')} className="ml-4 flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-200 dark:bg-white/10 hover:bg-indigo-100 hover:text-indigo-600 dark:hover:bg-indigo-900/40 dark:hover:text-indigo-300 transition-colors text-[10px] font-black uppercase tracking-widest text-slate-500">
+                         <HelpCircle size={14} /> How to Play
+                      </button>
                    </div>
                  </div>
 
@@ -693,7 +700,7 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* GAME VIEW - (Unchanged content) */}
+        {/* GAME VIEW */}
         {view === 'game' && gameState && activeSet && (
           <div className="absolute inset-0 z-50 flex flex-col items-center justify-center overflow-hidden">
              {/* ... Game View Content ... */}
@@ -774,6 +781,104 @@ const App: React.FC = () => {
         {(view !== 'home' && view !== 'game') && (
            <div className="max-w-7xl mx-auto w-full animate-in fade-in duration-500">
               
+              {view === 'help' && (
+                 <div className="max-w-4xl mx-auto w-full pb-20">
+                     <div className="text-center mb-12">
+                         <h2 className="text-5xl font-brand text-slate-800 dark:text-white mb-4">How to Play</h2>
+                         <p className="text-lg text-slate-500 dark:text-slate-400">Master the art of hosting the ultimate offline music quiz.</p>
+                     </div>
+
+                     <div className="space-y-8">
+                         {/* Step 1: Import */}
+                         <div className="glass-panel p-8 rounded-[2.5rem] relative overflow-hidden group">
+                             <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity"><LibraryBig size={120} /></div>
+                             <div className="flex flex-col md:flex-row gap-8 relative z-10">
+                                 <div className="flex-shrink-0 w-16 h-16 rounded-2xl bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-2xl font-brand shadow-inner">1</div>
+                                 <div className="flex-grow">
+                                     <h3 className="text-2xl font-brand text-slate-800 dark:text-white mb-2">Feed the Vault</h3>
+                                     <p className="text-slate-600 dark:text-slate-300 mb-6 leading-relaxed">
+                                         MelodyMatch works completely offline. You need to import your own MP3 files into the browser's local storage ("The Vault").
+                                     </p>
+                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                         <div className="p-4 rounded-2xl bg-white/50 dark:bg-black/20 border border-slate-200 dark:border-white/5">
+                                             <div className="flex items-center gap-2 font-bold text-slate-800 dark:text-white mb-1"><FolderPlus size={16} className="text-fuchsia-500"/> Collections</div>
+                                             <p className="text-xs text-slate-500">Group songs (e.g., "90s Hits", "Tamil Cinema") during import to organize your library.</p>
+                                         </div>
+                                         <div className="p-4 rounded-2xl bg-white/50 dark:bg-black/20 border border-slate-200 dark:border-white/5">
+                                             <div className="flex items-center gap-2 font-bold text-slate-800 dark:text-white mb-1"><Link2 size={16} className="text-indigo-500"/> Linking</div>
+                                             <p className="text-xs text-slate-500">If you clear your browser data, use "Link" to re-connect your files without losing metadata.</p>
+                                         </div>
+                                     </div>
+                                 </div>
+                             </div>
+                         </div>
+
+                         {/* Step 2: Build */}
+                         <div className="glass-panel p-8 rounded-[2.5rem] relative overflow-hidden group">
+                             <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity"><ListPlus size={120} /></div>
+                             <div className="flex flex-col md:flex-row gap-8 relative z-10">
+                                 <div className="flex-shrink-0 w-16 h-16 rounded-2xl bg-fuchsia-100 dark:bg-fuchsia-900/30 text-fuchsia-600 dark:text-fuchsia-400 flex items-center justify-center text-2xl font-brand shadow-inner">2</div>
+                                 <div className="flex-grow">
+                                     <h3 className="text-2xl font-brand text-slate-800 dark:text-white mb-2">Craft the Game</h3>
+                                     <p className="text-slate-600 dark:text-slate-300 mb-6 leading-relaxed">
+                                         Create a "Game Set" by selecting tracks from your Vault. Then, define the challenge segments.
+                                     </p>
+                                     <ul className="space-y-4 mb-6">
+                                         <li className="flex items-start gap-3">
+                                             <Wand2 className="mt-1 text-purple-500 shrink-0" size={18} />
+                                             <div className="text-sm text-slate-600 dark:text-slate-300">
+                                                 <strong>Auto Markers:</strong> Use the <span className="text-xs font-bold uppercase bg-fuchsia-100 dark:bg-fuchsia-900/40 text-fuchsia-600 px-1.5 rounded">Auto Markers</span> button to automatically find the best parts of the song. It detects the Intro, Instrumentals (Interludes), and Vocals (Charanam) for you.
+                                             </div>
+                                         </li>
+                                         <li className="flex items-start gap-3">
+                                             <Settings className="mt-1 text-indigo-500 shrink-0" size={18} />
+                                             <div className="text-sm text-slate-600 dark:text-slate-300">
+                                                 <strong>Manual Tweaks:</strong> Open the region editor to fine-tune markers. Drag the colored regions to capture specific beats or lyrics.
+                                             </div>
+                                         </li>
+                                     </ul>
+                                 </div>
+                             </div>
+                         </div>
+
+                         {/* Step 3: Host */}
+                         <div className="glass-panel p-8 rounded-[2.5rem] relative overflow-hidden group">
+                             <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity"><Gamepad2 size={120} /></div>
+                             <div className="flex flex-col md:flex-row gap-8 relative z-10">
+                                 <div className="flex-shrink-0 w-16 h-16 rounded-2xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-2xl font-brand shadow-inner">3</div>
+                                 <div className="flex-grow">
+                                     <h3 className="text-2xl font-brand text-slate-800 dark:text-white mb-2">Showtime</h3>
+                                     <p className="text-slate-600 dark:text-slate-300 mb-6 leading-relaxed">
+                                         Connect your device to a big screen/speaker. You are the host. The app keeps score.
+                                     </p>
+                                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                                         <div className="bg-emerald-500 text-white p-3 rounded-xl text-center shadow-lg transform hover:-translate-y-1 transition-transform">
+                                             <Play size={20} className="mx-auto mb-1"/>
+                                             <div className="text-[10px] font-black uppercase">Intro</div>
+                                         </div>
+                                         <div className="bg-indigo-500 text-white p-3 rounded-xl text-center shadow-lg transform hover:-translate-y-1 transition-transform">
+                                             <Zap size={20} className="mx-auto mb-1"/>
+                                             <div className="text-[10px] font-black uppercase">Interlude</div>
+                                         </div>
+                                         <div className="bg-amber-500 text-white p-3 rounded-xl text-center shadow-lg transform hover:-translate-y-1 transition-transform">
+                                             <Sparkles size={20} className="mx-auto mb-1"/>
+                                             <div className="text-[10px] font-black uppercase">Hint</div>
+                                         </div>
+                                         <div className="bg-fuchsia-500 text-white p-3 rounded-xl text-center shadow-lg transform hover:-translate-y-1 transition-transform">
+                                             <Star size={20} className="mx-auto mb-1"/>
+                                             <div className="text-[10px] font-black uppercase">Vocal</div>
+                                         </div>
+                                     </div>
+                                     <div className="p-4 bg-slate-100 dark:bg-white/5 rounded-2xl text-sm text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-white/5">
+                                         <strong className="text-slate-900 dark:text-white">Pro Tip:</strong> If a team guesses wrong, hit <span className="font-bold text-rose-500 uppercase">Wrong</span> to trigger <span className="font-bold text-orange-500 uppercase">Steal Mode</span>. Other teams can buzz in to steal the point!
+                                     </div>
+                                 </div>
+                             </div>
+                         </div>
+                     </div>
+                 </div>
+              )}
+
               {view === 'library' && (
                 /* Compact Library View */
                 <div className="space-y-6">
@@ -924,163 +1029,59 @@ const App: React.FC = () => {
                                  </div>
                              </div>
                              
-                             <WaveformEditorLoader 
-                                songId={editingSongId} 
-                                clipStart={editingSongConfig.clipStart||0} 
-                                clipEnd={editingSongConfig.clipEnd||5} 
-                                hintStart={editingSongConfig.hintStart||5} 
-                                hintEnd={editingSongConfig.hintEnd||10} 
-                                introStart={editingSongConfig.introStart||0} 
-                                introEnd={editingSongConfig.introEnd||5} 
-                                bonusStart={editingSongConfig.bonusStart||10} 
-                                bonusEnd={editingSongConfig.bonusEnd||15} 
-                                onSave={(c, h, i, b) => { 
+                             <WaveformEditorWrapper
+                                songId={editingSongId}
+                                clipStart={editingSongConfig.clipStart || 0}
+                                clipEnd={editingSongConfig.clipEnd || 5}
+                                hintStart={editingSongConfig.hintStart || 5}
+                                hintEnd={editingSongConfig.hintEnd || 10}
+                                introStart={editingSongConfig.introStart || 0}
+                                introEnd={editingSongConfig.introEnd || 5}
+                                bonusStart={editingSongConfig.bonusStart || 10}
+                                bonusEnd={editingSongConfig.bonusEnd || 15}
+                                onSave={(clip, hint, intro, bonus) => {
                                     setSetDraft({
-                                        ...setDraft, 
-                                        songs: setDraft.songs.map(x => x.songId === editingSongId ? { 
-                                            ...x, 
-                                            clipStart: c.start, clipEnd: c.end, 
-                                            hintStart: h.start, hintEnd: h.end, 
-                                            introStart: i.start, introEnd: i.end, 
-                                            bonusStart: b.start, bonusEnd: b.end, 
-                                            isConfigured: true,
-                                            isManuallyEdited: true, // Mark as edited on save
-                                            isAutoMarked: false     // Clear auto flag on edit
-                                        } : x)
-                                    }); 
-                                    setEditingSongId(null); 
-                                }} 
-                                maxDuration={30} 
+                                        ...setDraft,
+                                        songs: setDraft.songs.map(s => s.songId === editingSongId ? {
+                                            ...s,
+                                            clipStart: clip.start, clipEnd: clip.end,
+                                            hintStart: hint.start, hintEnd: hint.end,
+                                            introStart: intro.start, introEnd: intro.end,
+                                            bonusStart: bonus.start, bonusEnd: bonus.end,
+                                            isManuallyEdited: true,
+                                            isConfigured: true
+                                        } : s)
+                                    });
+                                    setEditingSongId(null);
+                                }}
                              />
                           </div>
                        ) : (
-                          <div className="glass-panel p-6 rounded-[2rem] h-full flex flex-col">
-                             <div className="flex justify-between items-center mb-4"><h3 className="font-brand text-lg dark:text-white">Add Tracks</h3><button onClick={toggleSelectAll} className="text-[10px] font-bold uppercase bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 px-3 py-1 rounded-lg">Select All</button></div>
-                             
-                             {/* Library Filter Dropdown */}
-                             <div className="mb-4 flex gap-2">
-                                <div className="relative w-1/3">
-                                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none"><Filter size={14} className="text-slate-500" /></div>
-                                    <select value={builderLibraryFilter} onChange={(e) => setBuilderLibraryFilter(e.target.value)} className="w-full bg-slate-100 dark:bg-black/20 text-slate-700 dark:text-slate-300 rounded-xl py-3 pl-10 pr-4 text-xs font-bold uppercase tracking-wide appearance-none outline-none focus:ring-2 ring-indigo-500/50 cursor-pointer">{libraryCategories.map(cat => (<option key={cat} value={cat}>{cat} Tracks</option>))}</select>
-                                </div>
-                                <input className="w-2/3 bg-slate-100 dark:bg-black/20 rounded-xl py-3 px-4 text-sm outline-none" placeholder="Search song name..." value={librarySearch} onChange={e => setLibrarySearch(e.target.value)} />
-                             </div>
-
-                             <div className="flex-grow overflow-y-auto space-y-2 custom-scrollbar pr-2">
-                                {filteredSongs.length === 0 ? (
-                                    <div className="text-center py-8 text-slate-400 text-xs uppercase tracking-widest">No matching songs found</div>
-                                ) : (
-                                    filteredSongs.map(s => {
-                                        if (builderLibraryFilter !== 'All' && (s.category || 'General') !== builderLibraryFilter) return null;
-                                        const inSet = setDraft.songs.some(x => x.songId === s.id);
-                                        const sel = selectedPickerIds.has(s.id);
-                                        return (
-                                            <div key={s.id} onClick={() => !inSet && toggleSongSelection(s.id)} className={`p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition-all ${inSet ? 'opacity-40' : sel ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-500' : 'border-transparent hover:bg-slate-50 dark:hover:bg-white/5'}`}>
-                                                {sel ? <CheckSquare size={18} className="text-indigo-500"/> : <Square size={18} className="text-slate-400"/>}
-                                                <div className="overflow-hidden">
-                                                    <div className="truncate text-sm font-bold dark:text-white">{s.title}</div>
-                                                    <div className="text-[10px] text-slate-500 flex items-center gap-2"><span>{s.category || 'General'}</span><span>•</span><span className="truncate">{s.filename}</span></div>
-                                                </div>
-                                            </div>
-                                        )
-                                    })
-                                )}
-                             </div>
-                             {selectedPickerIds.size > 0 && <button onClick={addSelectedToSet} className="w-full mt-4 py-3 bg-indigo-600 text-white rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg hover:bg-indigo-500 transition-colors">Add {selectedPickerIds.size}</button>}
+                          <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
+                             <Music size={64} strokeWidth={1} />
+                             <p className="font-brand text-xl uppercase tracking-widest mt-4">Select a track to edit</p>
                           </div>
                        )}
                     </div>
                  </div>
               )}
-              {view === 'history' && (
-                 /* History List (Simplified) */
-                 <div className="space-y-6">
-                    <h2 className="text-5xl font-brand text-center mb-12 dark:text-white">Hall of Fame</h2>
-                    {history.map(h => (
-                       <div key={h.id} className="glass-panel p-8 rounded-[2.5rem] flex flex-col md:flex-row justify-between items-center gap-8 relative group">
-                          {h.setId && (<button onClick={() => handleReplay(h.setId)} className="absolute top-6 right-6 p-3 bg-white/20 hover:bg-indigo-600 text-slate-500 hover:text-white rounded-xl transition-all shadow-md group-hover:scale-105" title="Replay this game"><Repeat size={20} /></button>)}
-                          <div className="text-center md:text-left"><h4 className="text-2xl font-bold dark:text-white">{h.setName}</h4><p className="text-sm font-mono text-slate-500">{new Date(h.dateTime).toLocaleDateString()}</p></div>
-                          <div className="flex gap-4">{h.teams.map((t, i) => (<div key={t.id} className={`px-6 py-4 rounded-2xl border flex flex-col items-center min-w-[100px] ${i===0?'bg-amber-100/50 border-amber-200':'bg-white/50 border-slate-100'}`}><span className="text-[10px] font-bold uppercase tracking-widest opacity-60">{t.name}</span><span className="text-3xl font-brand text-slate-800">{t.score}</span></div>))}</div>
-                       </div>
-                    ))}
-                 </div>
-              )}
            </div>
         )}
       </main>
-
-      {/* Modals ... (Unchanged) ... */}
-      {showCollectionModal && (
-        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
-           <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] w-full max-w-md text-center space-y-6">
-              <FolderPlus size={48} className="mx-auto text-indigo-500" />
-              <h3 className="text-2xl font-brand dark:text-white">Name Your Library</h3>
-              <p className="text-slate-500 text-sm">Create a new library (e.g., "Ilaiyaraja", "90s Hits") or type an existing name to add to it.</p>
-              <input autoFocus className="w-full bg-slate-100 dark:bg-black/40 p-4 rounded-xl text-center text-lg font-bold outline-none border-2 border-transparent focus:border-indigo-500" placeholder="Collection Name" value={collectionNameInput} onChange={e => setCollectionNameInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && confirmImport()} />
-              <div className="grid grid-cols-2 gap-4"><button onClick={() => setShowCollectionModal(false)} className="py-3 bg-slate-200 dark:bg-white/10 rounded-xl font-bold text-slate-600 dark:text-slate-300">Cancel</button><button onClick={confirmImport} className="py-3 bg-indigo-600 text-white rounded-xl font-bold">Import</button></div>
-           </div>
-        </div>
-      )}
-      
-      {isImporting && (
-         <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center flex-col gap-6">
-            <Loader2 size={64} className="text-indigo-500 animate-spin" />
-            <h3 className="text-2xl font-brand text-white tracking-widest animate-pulse">IMPORTING...</h3>
-            <div className="w-64 h-2 bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-indigo-500 transition-all duration-300" style={{width: `${importProgress}%`}}></div></div>
-            <p className="text-slate-500 font-mono text-xs">{importingFileName}</p>
-         </div>
-      )}
-
-      {showInstall && (
-         <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-900 p-10 rounded-[3rem] w-full max-w-2xl text-center relative animate-in fade-in zoom-in duration-300">
-               <button onClick={() => setShowInstall(false)} className="absolute top-6 right-6 p-2 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-rose-100 text-slate-400 hover:text-rose-500 transition-colors"><X size={20}/></button>
-               <Download size={64} className="mx-auto text-indigo-500 mb-6" />
-               <h2 className="text-4xl font-brand mb-4 dark:text-white">Install App</h2>
-               <p className="text-lg text-slate-600 dark:text-slate-400 mb-8">Get the best performance by installing MelodyMatch as a native app.</p>
-               
-               <div className="grid md:grid-cols-2 gap-6">
-                  <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl flex flex-col">
-                     <h4 className="font-bold mb-4 dark:text-white flex items-center justify-center gap-2"><MonitorDown size={20}/> Windows / Android</h4>
-                     
-                     {/* Smart Install Button Logic */}
-                     {deferredPrompt ? (
-                        <button onClick={handleInstallClick} className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg hover:bg-indigo-500 transition-all active:scale-95 animate-pulse">
-                           Install Now
-                        </button>
-                     ) : (
-                        <div className="text-left bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-200 dark:border-amber-700/50">
-                           <p className="text-xs font-bold text-amber-700 dark:text-amber-400 mb-2 uppercase tracking-wide">Manual Install Required</p>
-                           <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">Browser icon missing? Try this:</p>
-                           <ol className="list-decimal list-inside text-xs font-bold text-slate-700 dark:text-slate-300 space-y-1">
-                              <li>Click the <MoreVertical size={12} className="inline mx-1"/> menu (top right).</li>
-                              <li>Hover over <strong>Apps</strong>.</li>
-                              <li>Select "Install MelodyMatch".</li>
-                           </ol>
-                        </div>
-                     )}
-                  </div>
-                  
-                  <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl flex flex-col justify-center">
-                     <h4 className="font-bold mb-4 dark:text-white flex items-center justify-center gap-2"><Smartphone size={20}/> iOS / iPadOS</h4>
-                     <div className="space-y-3">
-                        <p className="text-sm text-slate-500 dark:text-slate-400">1. Tap the <Share size={14} className="inline mx-1"/> <strong>Share</strong> button in Safari.</p>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">2. Scroll down and tap <strong>Add to Home Screen</strong>.</p>
-                     </div>
-                  </div>
-               </div>
-            </div>
-         </div>
-      )}
     </div>
   );
 };
 
-const WaveformEditorLoader: React.FC<{ songId: string; clipStart: number; clipEnd: number; hintStart: number; hintEnd: number; introStart: number; introEnd: number; bonusStart: number; bonusEnd: number; onSave: (clip: { start: number; end: number }, hint: { start: number; end: number }, intro: { start: number; end: number }, bonus: { start: number; end: number }) => void; maxDuration: number; }> = ({ songId, clipStart, clipEnd, hintStart, hintEnd, introStart, introEnd, bonusStart, bonusEnd, onSave, maxDuration }) => {
-  const [url, setUrl] = useState<string>('');
-  useEffect(() => { platformBridge.getAudioUrl(songId).then(u => setUrl(u || '')); }, [songId]);
-  if (!url) return <div className="p-12 text-center text-slate-400 animate-pulse font-mono uppercase tracking-widest">Loading Audio...</div>;
-  return <WaveformEditor key={songId} url={url} clipStart={clipStart} clipEnd={clipEnd} hintStart={hintStart} hintEnd={hintEnd} introStart={introStart} introEnd={introEnd} bonusStart={bonusStart} bonusEnd={bonusEnd} onSave={onSave} maxDuration={maxDuration} />;
+const WaveformEditorWrapper = ({ songId, ...props }: any) => {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    platformBridge.getAudioUrl(songId).then(u => { if(active) setUrl(u); });
+    return () => { active = false; };
+  }, [songId]);
+
+  if (!url) return <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin text-indigo-500" size={32}/></div>;
+  return <WaveformEditor url={url} {...props} />;
 };
 
 export default App;
