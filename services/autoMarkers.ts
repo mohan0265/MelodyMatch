@@ -10,20 +10,23 @@ const CONFIG = {
   WINDOW_SIZE: 0.1, // 100ms resolution
   
   // Weights for scoring
-  VOCAL_WEIGHT: 2.0,       // How much to favor vocals when looking for Charanam
-  INSTRUMENTAL_WEIGHT: 1.5, // How much to penalize vocals when looking for Interludes
+  VOCAL_WEIGHT: 3.0,       // Strongly favor vocals for Charanam
+  INSTRUMENTAL_WEIGHT: 2.0, // Strongly favor instrumentals for Interludes
   
   // Normalized Search Windows (Time / Duration)
-  // Based on standard 4-5m song structure
+  // Shifted later to strictly avoid the Pallavi (typically 0:00-1:10)
   WINDOWS: {
-    // Interlude 1: Usually after Pallavi/Anupallavi (approx 1:10 - 1:45)
-    INTERLUDE_1: { min: 60, max: 110, normStart: 0.22, normEnd: 0.38 },
+    // Interlude 1: Strictly after Pallavi. 
+    // Typical start: 1:15 (75s) to 1:45 (105s)
+    INTERLUDE_1: { min: 75, max: 125, normStart: 0.28, normEnd: 0.42 },
     
-    // Charanam: Vocal verse after Interlude 1 (approx 1:50 - 2:30)
-    CHARANAM: { min: 110, max: 160, normStart: 0.38, normEnd: 0.55 },
+    // Charanam: Vocal verse after Interlude 1.
+    // Typical start: 1:45 (105s) to 2:15 (135s)
+    CHARANAM: { min: 115, max: 175, normStart: 0.42, normEnd: 0.60 },
     
-    // Interlude 2: Instrumental break after Charanam (approx 2:40 - 3:30)
-    INTERLUDE_2: { min: 160, max: 220, normStart: 0.55, normEnd: 0.75 }
+    // Interlude 2: Instrumental break after Charanam.
+    // Typical start: 2:45 (165s) +
+    INTERLUDE_2: { min: 180, max: 260, normStart: 0.65, normEnd: 0.85 }
   }
 };
 
@@ -171,12 +174,15 @@ const findSmartRegion = (
       // Heuristic Scoring
       let sampleScore = 0;
       if (mode === 'vocal') {
-        // We want High Energy AND High Vocalness
-        sampleScore = e * (1 + (v * CONFIG.VOCAL_WEIGHT)); 
+        // We want High Energy AND High Vocalness (Charanam)
+        // Only accept if vocalness is significant (> 0.4)
+        const bonus = v > 0.4 ? v : 0;
+        sampleScore = e * (1 + (bonus * CONFIG.VOCAL_WEIGHT)); 
       } else {
         // Instrumental: We want High Energy BUT Low Vocalness
-        // Penalize if vocalness is high (> 0.5)
-        const penalty = v > 0.5 ? (1 - v) : 1.0; 
+        // Penalize heavily if vocalness is > 0.3
+        // Uses squared penalty to aggressively drop score for vocals
+        const penalty = v > 0.3 ? Math.pow(1 - v, 2) : 1.0; 
         sampleScore = e * penalty * CONFIG.INSTRUMENTAL_WEIGHT; 
       }
       
@@ -187,8 +193,8 @@ const findSmartRegion = (
     // Normalize by length
     const avgScore = scoreSum / blockLen;
     
-    // Only consider blocks with minimum silence threshold
-    if (energySum > 0.01 && avgScore > bestScore) {
+    // Only consider blocks with minimum energy threshold (ignore silence)
+    if (energySum > 0.05 && avgScore > bestScore) {
       bestScore = avgScore;
       bestIdx = i;
     }
@@ -229,6 +235,7 @@ export const autoMarkersService = {
       const D = profile.duration;
 
       // 1. Intro (Fixed window, just snap to start)
+      // Usually accurate as-is.
       const intro = { start: 0, end: Math.min(D, 8) };
 
       // Helper to calculate dynamic windows based on song length
@@ -236,20 +243,23 @@ export const autoMarkersService = {
       const scale = Math.min(1.2, Math.max(0.8, D / 300)); // normalized to 5 mins
 
       // 2. Interlude 1 (Instrumental)
-      const i1_search_s = Math.max(60 * scale, D * CONFIG.WINDOWS.INTERLUDE_1.normStart);
-      const i1_search_e = Math.min(120 * scale, D * CONFIG.WINDOWS.INTERLUDE_1.normEnd);
+      // Must be after Pallavi. Start search deeper into the song.
+      const i1_search_s = Math.max(75 * scale, D * CONFIG.WINDOWS.INTERLUDE_1.normStart);
+      const i1_search_e = Math.min(125 * scale, D * CONFIG.WINDOWS.INTERLUDE_1.normEnd);
       
       const interlude1 = findSmartRegion(profile, i1_search_s, i1_search_e, 10, 'instrumental');
 
       // 3. Bonus Vocal (Charanam) - Look specifically for VOCALS
-      // Start searching a bit after interlude 1
-      const v_search_s = Math.max(interlude1.end + 5, D * CONFIG.WINDOWS.CHARANAM.normStart);
+      // Start searching immediately after interlude 1 to catch the start of Charanam
+      // But respect the global Charanam window to avoid picking end of Interlude
+      const v_search_s = Math.max(interlude1.end + 2, D * CONFIG.WINDOWS.CHARANAM.normStart);
       const v_search_e = Math.min(D - 30, D * CONFIG.WINDOWS.CHARANAM.normEnd);
       
       const bonus = findSmartRegion(profile, v_search_s, v_search_e, 8, 'vocal');
 
       // 4. Interlude 2 (Instrumental) - Look after Charanam
-      const i2_search_s = Math.max(bonus.end + 10, D * CONFIG.WINDOWS.INTERLUDE_2.normStart);
+      // Ensure we jump far enough ahead to skip the rest of Charanam
+      const i2_search_s = Math.max(bonus.end + 15, D * CONFIG.WINDOWS.INTERLUDE_2.normStart);
       const i2_search_e = Math.min(D - 10, D * CONFIG.WINDOWS.INTERLUDE_2.normEnd);
       
       const interlude2 = findSmartRegion(profile, i2_search_s, i2_search_e, 10, 'instrumental');
