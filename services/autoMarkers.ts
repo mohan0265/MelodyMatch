@@ -3,154 +3,274 @@ import { GameSetSong } from '../types';
 import { platformBridge } from './platform';
 
 /**
- * Heuristic Configuration
+ * Advanced Heuristic Configuration for Indian/Tamil Cinema Structure
+ * Uses DSP to differentiate Vocals (Mid-range) from Instrumentals (Full-range/Percussive).
  */
 const CONFIG = {
-  INTRO_LEN: 8,
-  INTERLUDE_LEN: 10,
-  VOCAL_LEN: 8,
-  WINDOW_SIZE: 0.5, // Analysis window in seconds
-  RMS_THRESHOLD: 0.05, // Silence threshold
+  WINDOW_SIZE: 0.1, // 100ms resolution
+  
+  // Weights for scoring
+  VOCAL_WEIGHT: 2.0,       // How much to favor vocals when looking for Charanam
+  INSTRUMENTAL_WEIGHT: 1.5, // How much to penalize vocals when looking for Interludes
+  
+  // Normalized Search Windows (Time / Duration)
+  // Based on standard 4-5m song structure
+  WINDOWS: {
+    // Interlude 1: Usually after Pallavi/Anupallavi (approx 1:10 - 1:45)
+    INTERLUDE_1: { min: 60, max: 110, normStart: 0.22, normEnd: 0.38 },
+    
+    // Charanam: Vocal verse after Interlude 1 (approx 1:50 - 2:30)
+    CHARANAM: { min: 110, max: 160, normStart: 0.38, normEnd: 0.55 },
+    
+    // Interlude 2: Instrumental break after Charanam (approx 2:40 - 3:30)
+    INTERLUDE_2: { min: 160, max: 220, normStart: 0.55, normEnd: 0.75 }
+  }
 };
+
+interface AnalysisProfile {
+  totalEnergy: number[];
+  vocalEnergy: number[];
+  vocalness: number[]; // 0.0 to 1.0 (ratio of vocal band to total)
+  onsets: boolean[];
+  duration: number;
+}
 
 /**
- * Analyzes audio buffer to find structural landmarks.
- * 
- * Logic:
- * 1. Intro: From 0s to end of first quiet period or fixed duration.
- * 2. Vocal (Bonus): First sustained high-energy block after intro (approx).
- * 3. Interlude 1 (Main): High energy block distinct from vocal.
- * 4. Interlude 2 (Hint): Later high energy block.
+ * Perform Offline DSP Analysis
+ * 1. Renders audio through a Bandpass filter to isolate Vocal frequencies (300-3000Hz).
+ * 2. Compares RMS of Bandpass vs Original to determine "Vocalness".
  */
-const analyzeStructure = (buffer: AudioBuffer): { 
-  intro: { start: number, end: number },
-  interlude1: { start: number, end: number },
-  interlude2: { start: number, end: number },
-  vocal: { start: number, end: number }
-} => {
-  const data = buffer.getChannelData(0); // Use mono for analysis
-  const sampleRate = buffer.sampleRate;
-  const duration = buffer.duration;
+const analyzeAudioDSP = async (sourceBuffer: AudioBuffer): Promise<AnalysisProfile> => {
+  const duration = sourceBuffer.duration;
+  // Downsample context for speed (11kHz is sufficient for envelope analysis)
+  const analysisSampleRate = 12000; 
+  const length = Math.ceil(duration * analysisSampleRate);
   
-  const windowSamples = Math.floor(sampleRate * CONFIG.WINDOW_SIZE);
-  const windowsCount = Math.floor(data.length / windowSamples);
+  const offlineCtx = new OfflineAudioContext(1, length, analysisSampleRate);
   
-  const energyProfile: number[] = [];
+  // Source Node
+  const source = offlineCtx.createBufferSource();
+  source.buffer = sourceBuffer;
 
-  // 1. Compute Energy Profile (RMS)
-  for (let i = 0; i < windowsCount; i++) {
-    let sum = 0;
-    const start = i * windowSamples;
-    // Optimization: Skip every 4th sample to speed up loop
-    for (let j = 0; j < windowSamples; j += 4) {
-      sum += data[start + j] * data[start + j];
-    }
-    const rms = Math.sqrt(sum / (windowSamples / 4));
-    energyProfile.push(rms);
-  }
+  // Vocal Band Filter (300Hz - 3400Hz)
+  const vocalFilter = offlineCtx.createBiquadFilter();
+  vocalFilter.type = 'bandpass';
+  vocalFilter.frequency.value = 1000;
+  vocalFilter.Q.value = 0.7; // Wide bandwidth to capture range
 
-  // Helper to find regions
-  const findRegion = (
-    searchStartSec: number, 
-    minDuration: number, 
-    isLoud: boolean = true
-  ): { start: number, end: number } => {
-    const startIdx = Math.floor(searchStartSec / CONFIG.WINDOW_SIZE);
-    if (startIdx >= energyProfile.length) return { start: duration - minDuration, end: duration };
-
-    let bestStartIdx = startIdx;
-    let maxEnergySum = 0;
-    const windowSpan = Math.ceil(minDuration / CONFIG.WINDOW_SIZE);
-
-    // Simple sliding window to find highest/lowest energy block
-    for (let i = startIdx; i < energyProfile.length - windowSpan; i++) {
-      let currentSum = 0;
-      for (let j = 0; j < windowSpan; j++) {
-        currentSum += energyProfile[i + j];
-      }
-      
-      if (isLoud) {
-        if (currentSum > maxEnergySum) {
-          maxEnergySum = currentSum;
-          bestStartIdx = i;
-        }
-      } else {
-        // For quiet search (rarely used in this simplified version)
-        if (maxEnergySum === 0 || currentSum < maxEnergySum) {
-          maxEnergySum = currentSum;
-          bestStartIdx = i;
-        }
-      }
-    }
-
-    const s = bestStartIdx * CONFIG.WINDOW_SIZE;
-    return { start: s, end: Math.min(duration, s + minDuration) };
+  // We want to analyze two signals: Original and VocalFiltered.
+  // Since OfflineCtx only has one destination, we render the FILTERED signal here.
+  // We can calculate the Original signal energy purely mathematically from the source buffer later.
+  
+  source.connect(vocalFilter);
+  vocalFilter.connect(offlineCtx.destination);
+  
+  source.start(0);
+  
+  // Render (Async, highly optimized by browser)
+  const renderedBuffer = await offlineCtx.startRendering();
+  
+  // Now process the data
+  const originalData = sourceBuffer.getChannelData(0); // Assuming mono/left
+  const filteredData = renderedBuffer.getChannelData(0);
+  
+  // We need to map the Original Data (44k/48k) to the Analysis Rate (12k)
+  const ratio = sourceBuffer.sampleRate / analysisSampleRate;
+  
+  const samplesPerWindow = Math.floor(analysisSampleRate * CONFIG.WINDOW_SIZE);
+  const totalWindows = Math.floor(filteredData.length / samplesPerWindow);
+  
+  const profile: AnalysisProfile = {
+    totalEnergy: [],
+    vocalEnergy: [],
+    vocalness: [],
+    onsets: [],
+    duration
   };
 
-  // --- HEURISTICS ---
+  let prevEnergy = 0;
 
-  // Intro: Always start at 0. End is fixed for safety in offline mode without advanced vocal detection.
-  const intro = { start: 0, end: Math.min(duration, CONFIG.INTRO_LEN) };
-
-  // Bonus Vocal: Usually starts shortly after Intro. Look for loud block in 10s - 40s range.
-  const vocal = findRegion(10, CONFIG.VOCAL_LEN, true);
-
-  // Interlude 1 (Main): Look for instrumental break. Usually after 1st Chorus. 
-  // Heuristic: Search after 45s.
-  const interlude1 = findRegion(Math.max(45, vocal.end + 5), CONFIG.INTERLUDE_LEN, true);
-
-  // Interlude 2 (Hint): Look for another break later.
-  // Heuristic: Search after Interlude 1 + 20s.
-  const interlude2 = findRegion(Math.max(interlude1.end + 20, 90), CONFIG.INTERLUDE_LEN, true);
-
-  return { intro, interlude1, interlude2, vocal };
+  for (let i = 0; i < totalWindows; i++) {
+    const startIdx = i * samplesPerWindow;
+    
+    // 1. Calculate Energy of Filtered Signal (Vocal Band)
+    let sumVocal = 0;
+    for (let j = 0; j < samplesPerWindow; j += 2) { // stride 2 for speed
+      const s = filteredData[startIdx + j] || 0;
+      sumVocal += s * s;
+    }
+    const rmsVocal = Math.sqrt(sumVocal / (samplesPerWindow / 2));
+    
+    // 2. Calculate Energy of Original Signal (Full Band)
+    // We map indices back to the high-res buffer
+    const origStartIdx = Math.floor(startIdx * ratio);
+    const origEndIdx = Math.floor((startIdx + samplesPerWindow) * ratio);
+    const origStep = Math.max(1, Math.floor((origEndIdx - origStartIdx) / (samplesPerWindow/2))); // Match sample count roughly
+    
+    let sumTotal = 0;
+    let count = 0;
+    for (let k = origStartIdx; k < origEndIdx; k += origStep) {
+      const s = originalData[k] || 0;
+      sumTotal += s * s;
+      count++;
+    }
+    const rmsTotal = Math.sqrt(sumTotal / Math.max(1, count));
+    
+    // 3. Compute Vocalness Ratio
+    // Vocals usually have concentrated energy in the mid-band.
+    // If rmsVocal is close to rmsTotal, it's likely vocal-heavy or mid-range heavy.
+    // If rmsTotal is much higher than rmsVocal, there is lots of bass/treble (Instrumental).
+    const vocalRatio = rmsTotal > 0.001 ? (rmsVocal / rmsTotal) : 0;
+    
+    profile.totalEnergy.push(rmsTotal);
+    profile.vocalEnergy.push(rmsVocal);
+    profile.vocalness.push(vocalRatio);
+    
+    // 4. Onset Detection (on Total Energy)
+    const diff = rmsTotal - prevEnergy;
+    profile.onsets.push(diff > 0.03); // Threshold
+    prevEnergy = rmsTotal;
+  }
+  
+  return profile;
 };
 
+
+/**
+ * Finds the best region based on Energy and Vocalness criteria.
+ */
+const findSmartRegion = (
+  profile: AnalysisProfile, 
+  searchStartSec: number, 
+  searchEndSec: number, 
+  durationSec: number,
+  mode: 'instrumental' | 'vocal'
+): { start: number, end: number } => {
+  
+  const startIdx = Math.floor(searchStartSec / CONFIG.WINDOW_SIZE);
+  const endIdx = Math.floor(searchEndSec / CONFIG.WINDOW_SIZE);
+  const blockLen = Math.floor(durationSec / CONFIG.WINDOW_SIZE);
+  
+  if (startIdx >= profile.totalEnergy.length) {
+    return { start: searchStartSec, end: searchStartSec + durationSec };
+  }
+  
+  let bestIdx = startIdx;
+  let bestScore = -Infinity;
+
+  const limit = Math.min(endIdx, profile.totalEnergy.length - blockLen);
+  
+  for (let i = startIdx; i < limit; i++) {
+    let scoreSum = 0;
+    let energySum = 0;
+    
+    for (let j = 0; j < blockLen; j++) {
+      const e = profile.totalEnergy[i + j];
+      const v = profile.vocalness[i + j];
+      
+      // Heuristic Scoring
+      let sampleScore = 0;
+      if (mode === 'vocal') {
+        // We want High Energy AND High Vocalness
+        sampleScore = e * (1 + (v * CONFIG.VOCAL_WEIGHT)); 
+      } else {
+        // Instrumental: We want High Energy BUT Low Vocalness
+        // Penalize if vocalness is high (> 0.5)
+        const penalty = v > 0.5 ? (1 - v) : 1.0; 
+        sampleScore = e * penalty * CONFIG.INSTRUMENTAL_WEIGHT; 
+      }
+      
+      scoreSum += sampleScore;
+      energySum += e;
+    }
+    
+    // Normalize by length
+    const avgScore = scoreSum / blockLen;
+    
+    // Only consider blocks with minimum silence threshold
+    if (energySum > 0.01 && avgScore > bestScore) {
+      bestScore = avgScore;
+      bestIdx = i;
+    }
+  }
+
+  // Refine Start: Snap to Onset (Look back 2s)
+  // We want to start clips on a "Hit"
+  const lookBack = Math.floor(2.0 / CONFIG.WINDOW_SIZE);
+  let snapIdx = bestIdx;
+  for (let k = 0; k < lookBack; k++) {
+    const idx = bestIdx - k;
+    if (idx < 0) break;
+    // If it's an onset and energy is decent
+    if (profile.onsets[idx] && profile.totalEnergy[idx] > 0.02) {
+      snapIdx = idx;
+      break; 
+    }
+  }
+  
+  const finalStart = snapIdx * CONFIG.WINDOW_SIZE;
+  return { start: finalStart, end: finalStart + durationSec };
+};
+
+
 export const autoMarkersService = {
-  /**
-   * Process a single song and return suggested markers.
-   */
   async processSong(songId: string): Promise<Partial<GameSetSong> | null> {
     try {
       const url = await platformBridge.getAudioUrl(songId);
       if (!url) return null;
 
-      // Fetch blob/arraybuffer
       const response = await fetch(url);
       const arrayBuffer = await response.arrayBuffer();
-
-      // Decode Audio (Offline)
-      // Note: decodeAudioData must run on main thread, but it's relatively fast for single files.
-      // We will handle batch yielding in the UI layer.
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
       const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
-      const structure = analyzeStructure(audioBuffer);
+      // Run advanced DSP analysis
+      const profile = await analyzeAudioDSP(audioBuffer);
+      const D = profile.duration;
 
-      // Map to GameSetSong format
-      // MAPPING:
-      // Intro -> Intro
-      // Interlude 1 -> Main Clip (clipStart/End)
-      // Interlude 2 -> Hint (hintStart/End)
-      // Vocal -> Bonus (bonusStart/End)
+      // 1. Intro (Fixed window, just snap to start)
+      const intro = { start: 0, end: Math.min(D, 8) };
+
+      // Helper to calculate dynamic windows based on song length
+      // If song is short (< 4m), compress windows. If long, expand.
+      const scale = Math.min(1.2, Math.max(0.8, D / 300)); // normalized to 5 mins
+
+      // 2. Interlude 1 (Instrumental)
+      const i1_search_s = Math.max(60 * scale, D * CONFIG.WINDOWS.INTERLUDE_1.normStart);
+      const i1_search_e = Math.min(120 * scale, D * CONFIG.WINDOWS.INTERLUDE_1.normEnd);
       
+      const interlude1 = findSmartRegion(profile, i1_search_s, i1_search_e, 10, 'instrumental');
+
+      // 3. Bonus Vocal (Charanam) - Look specifically for VOCALS
+      // Start searching a bit after interlude 1
+      const v_search_s = Math.max(interlude1.end + 5, D * CONFIG.WINDOWS.CHARANAM.normStart);
+      const v_search_e = Math.min(D - 30, D * CONFIG.WINDOWS.CHARANAM.normEnd);
+      
+      const bonus = findSmartRegion(profile, v_search_s, v_search_e, 8, 'vocal');
+
+      // 4. Interlude 2 (Instrumental) - Look after Charanam
+      const i2_search_s = Math.max(bonus.end + 10, D * CONFIG.WINDOWS.INTERLUDE_2.normStart);
+      const i2_search_e = Math.min(D - 10, D * CONFIG.WINDOWS.INTERLUDE_2.normEnd);
+      
+      const interlude2 = findSmartRegion(profile, i2_search_s, i2_search_e, 10, 'instrumental');
+
       return {
         songId,
-        introStart: structure.intro.start,
-        introEnd: structure.intro.end,
-        clipStart: structure.interlude1.start,
-        clipEnd: structure.interlude1.end,
-        hintStart: structure.interlude2.start,
-        hintEnd: structure.interlude2.end,
-        bonusStart: structure.vocal.start,
-        bonusEnd: structure.vocal.end,
+        introStart: intro.start,
+        introEnd: intro.end,
+        clipStart: interlude1.start,
+        clipEnd: interlude1.end,
+        hintStart: interlude2.start,
+        hintEnd: interlude2.end,
+        bonusStart: bonus.start,
+        bonusEnd: bonus.end,
         isAutoMarked: true,
         isManuallyEdited: false,
         isConfigured: true
       };
 
     } catch (e) {
-      console.error("Auto-marker failed for song:", songId, e);
+      console.error("Auto-marker failed:", songId, e);
       return null;
     }
   }
