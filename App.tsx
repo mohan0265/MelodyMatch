@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Library,
@@ -1039,7 +1038,12 @@ const App: React.FC = () => {
                                 introEnd={editingSongConfig.introEnd || 5}
                                 bonusStart={editingSongConfig.bonusStart || 10}
                                 bonusEnd={editingSongConfig.bonusEnd || 15}
-                                onSave={(clip, hint, intro, bonus) => {
+                                onSave={(
+                                  clip: { start: number; end: number },
+                                  hint: { start: number; end: number },
+                                  intro: { start: number; end: number },
+                                  bonus: { start: number; end: number }
+                                ) => {
                                     setSetDraft({
                                         ...setDraft,
                                         songs: setDraft.songs.map(s => s.songId === editingSongId ? {
