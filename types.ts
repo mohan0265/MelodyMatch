@@ -27,6 +27,10 @@ export interface GameSetSong {
   
   orderIndex: number;
   isConfigured?: boolean; // Tracks if the user has saved custom regions
+  
+  // Automation Metadata
+  isAutoMarked?: boolean;
+  isManuallyEdited?: boolean;
 }
 
 export interface GameSet {

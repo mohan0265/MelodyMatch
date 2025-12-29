@@ -25,9 +25,9 @@ type RegionType = 'intro' | 'main' | 'hint' | 'bonus';
 
 const REGION_CONFIG = {
   intro: { label: 'Intro', color: 'rgba(16, 185, 129, 0.5)', colorDim: 'rgba(16, 185, 129, 0.1)' },
-  main: { label: 'Main', color: 'rgba(79, 70, 229, 0.6)', colorDim: 'rgba(79, 70, 229, 0.1)' },
-  hint: { label: 'Hint', color: 'rgba(245, 158, 11, 0.6)', colorDim: 'rgba(245, 158, 11, 0.1)' },
-  bonus: { label: 'Bonus', color: 'rgba(244, 63, 94, 0.5)', colorDim: 'rgba(244, 63, 94, 0.1)' }
+  main: { label: 'Interlude 1', color: 'rgba(79, 70, 229, 0.6)', colorDim: 'rgba(79, 70, 229, 0.1)' },
+  hint: { label: 'Interlude 2', color: 'rgba(245, 158, 11, 0.6)', colorDim: 'rgba(245, 158, 11, 0.1)' },
+  bonus: { label: 'Vocal', color: 'rgba(244, 63, 94, 0.5)', colorDim: 'rgba(244, 63, 94, 0.1)' }
 };
 
 const WaveformEditor: React.FC<WaveformEditorProps> = ({ 
@@ -236,7 +236,7 @@ const WaveformEditor: React.FC<WaveformEditorProps> = ({
              onClick={() => onSave(regionsState.main, regionsState.hint, regionsState.intro, regionsState.bonus)} 
              className="w-full md:w-auto px-10 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-md font-brand tracking-widest flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-xl uppercase"
            >
-             <Save size={20} /> Save All
+             <Save size={20} /> Save Changes
            </button>
         </div>
       </div>

@@ -65,12 +65,15 @@ import {
   MoreVertical,
   Wifi,
   WifiOff,
-  Filter
+  Filter,
+  Wand2,
+  Pencil
 } from 'lucide-react';
 
 import { GameResult, GameSet, GameSetSong, GameState, Song, Team, Platform } from './types';
 import { persistence } from './services/persistence';
 import { getPlatform, platformBridge } from './services/platform';
+import { autoMarkersService } from './services/autoMarkers';
 import WaveformEditor from './components/WaveformEditor';
 import Scoreboard from './components/Scoreboard';
 
@@ -162,6 +165,10 @@ const App: React.FC = () => {
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const [importingFileName, setImportingFileName] = useState('');
+
+  // Auto Marker State
+  const [isAutoMarking, setIsAutoMarking] = useState(false);
+  const [autoMarkProgress, setAutoMarkProgress] = useState({ current: 0, total: 0 });
 
   const [showCollectionModal, setShowCollectionModal] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<{name: string, blob: Blob, size: number}[]>([]);
@@ -451,6 +458,48 @@ const App: React.FC = () => {
     const next = [norm, ...sets.filter(s => s.id !== norm.id)]; await persistence.saveSets(next); setSets(next); setSetDraft(null); setView('home');
   };
 
+  /**
+   * Auto-Markers Batch Process
+   */
+  const handleAutoMark = async (force: boolean = false) => {
+    if (!setDraft) return;
+    setIsAutoMarking(true);
+    
+    // Filter candidates: if forced, use all. If not, only use those not edited.
+    const candidates = setDraft.songs.filter(s => force || !s.isManuallyEdited);
+    setAutoMarkProgress({ current: 0, total: candidates.length });
+
+    const newSongsList = [...setDraft.songs];
+
+    for (let i = 0; i < candidates.length; i++) {
+        const songConfig = candidates[i];
+        
+        // Skip if cancelled (though explicit cancel button not implemented to keep UI simple, user can just wait)
+        
+        // Process
+        const result = await autoMarkersService.processSong(songConfig.songId);
+        
+        if (result) {
+            // Merge results
+            const idx = newSongsList.findIndex(s => s.songId === songConfig.songId);
+            if (idx !== -1) {
+                newSongsList[idx] = { ...newSongsList[idx], ...result };
+            }
+        }
+
+        // Update Progress
+        setAutoMarkProgress({ current: i + 1, total: candidates.length });
+        
+        // Update Draft State incrementally so user sees progress
+        setSetDraft(prev => prev ? { ...prev, songs: [...newSongsList] } : null);
+
+        // Yield to main thread to keep UI responsive
+        await new Promise(r => setTimeout(r, 50));
+    }
+
+    setIsAutoMarking(false);
+  };
+
   const startGame = (set: GameSet, teamsCount: number) => {
     const teams: Team[] = Array.from({ length: teamsCount }).map((_, i) => ({ id: crypto.randomUUID(), name: `Team ${i + 1}`, score: 0 }));
     const indices = Array.from({ length: set.songs.length }).map((_, i) => i).sort(() => Math.random() - 0.5);
@@ -586,9 +635,9 @@ const App: React.FC = () => {
         {/* HOME VIEW */}
         {view === 'home' && (
           <div className="h-full w-full flex items-center justify-center p-4 lg:p-8 animate-in fade-in duration-700">
+            {/* ... Home Content ... */}
             <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 h-full lg:h-auto items-center">
-              
-              {/* Left Col: Branding & Actions */}
+              {/* Left Col */}
               <div className="lg:col-span-7 flex flex-col justify-center space-y-8 lg:space-y-12 text-center lg:text-left">
                  <div>
                    <h1 className="text-6xl sm:text-7xl lg:text-9xl font-display leading-[0.85] tracking-tight mb-4 dark:text-white text-slate-900 drop-shadow-2xl">
@@ -601,39 +650,13 @@ const App: React.FC = () => {
                    </div>
                  </div>
 
-                 {/* Action Grid */}
                  <div className="grid grid-cols-2 gap-4 w-full max-w-2xl mx-auto lg:mx-0">
-                    <HomeActionButton 
-                       label="Game Builder" 
-                       description="Create New Set" 
-                       icon={<ListPlus />} 
-                       color="text-fuchsia-500"
-                       onClick={() => { if (!setDraft) setSetDraft({ id: crypto.randomUUID(), name: '', description: '', songs: [], createdAt: Date.now() }); setView('setBuilder'); }}
-                    />
-                    <HomeActionButton 
-                       label="Music Vault" 
-                       description={`${songs.length} Tracks Ready`} 
-                       icon={<LibraryBig />} 
-                       color="text-indigo-500"
-                       onClick={() => setView('library')}
-                    />
-                    <HomeActionButton 
-                       label="Hall of Fame" 
-                       description="High Scores" 
-                       icon={<Trophy />} 
-                       color="text-amber-500"
-                       onClick={() => setView('history')}
-                    />
-                    <HomeActionButton 
-                       label="Import Set" 
-                       description=".MMSET File" 
-                       icon={<FileUp />} 
-                       color="text-emerald-500"
-                       onClick={importSetFile}
-                    />
+                    <HomeActionButton label="Game Builder" description="Create New Set" icon={<ListPlus />} color="text-fuchsia-500" onClick={() => { if (!setDraft) setSetDraft({ id: crypto.randomUUID(), name: '', description: '', songs: [], createdAt: Date.now() }); setView('setBuilder'); }} />
+                    <HomeActionButton label="Music Vault" description={`${songs.length} Tracks Ready`} icon={<LibraryBig />} color="text-indigo-500" onClick={() => setView('library')} />
+                    <HomeActionButton label="Hall of Fame" description="High Scores" icon={<Trophy />} color="text-amber-500" onClick={() => setView('history')} />
+                    <HomeActionButton label="Import Set" description=".MMSET File" icon={<FileUp />} color="text-emerald-500" onClick={importSetFile} />
                  </div>
                  
-                 {/* Install App Button */}
                  {!isStandalone && (
                     <div className="w-full max-w-2xl mx-auto lg:mx-0 mt-8">
                         <button onClick={() => setShowInstall(true)} className="w-full text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-indigo-500 flex items-center justify-center gap-2 p-4 bg-white/50 dark:bg-white/5 rounded-xl border border-white/20 hover:border-indigo-200 transition-all hover:scale-[1.01] active:scale-95">
@@ -642,39 +665,24 @@ const App: React.FC = () => {
                     </div>
                  )}
               </div>
-
-              {/* Right Col: Quick Play */}
+              {/* Right Col */}
               <div className="lg:col-span-5 h-[500px] lg:h-[650px] relative w-full">
                  <div className="absolute inset-0 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-[3rem] shadow-2xl border border-white/40 dark:border-white/10 flex flex-col overflow-hidden">
                     <div className="p-8 border-b border-slate-200/50 dark:border-white/5 flex justify-between items-center bg-white/40 dark:bg-white/5">
-                        <h2 className="text-xl font-brand text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-3">
-                          <Zap size={24} className="text-yellow-500 fill-yellow-500"/> Quick Play
-                        </h2>
+                        <h2 className="text-xl font-brand text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-3"><Zap size={24} className="text-yellow-500 fill-yellow-500"/> Quick Play</h2>
                         <span className="px-3 py-1 rounded-full bg-slate-200 dark:bg-white/10 text-[10px] font-black uppercase text-slate-500 dark:text-slate-300">{sets.length} Games</span>
                     </div>
-
                     <div className="flex-grow overflow-y-auto p-4 space-y-3 custom-scrollbar">
                        {sets.length === 0 ? (
-                          <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 opacity-60">
-                             <Gamepad2 size={64} strokeWidth={1} />
-                             <p className="font-brand text-lg uppercase tracking-widest">No Games Found</p>
-                          </div>
+                          <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 opacity-60"><Gamepad2 size={64} strokeWidth={1} /><p className="font-brand text-lg uppercase tracking-widest">No Games Found</p></div>
                        ) : (
                           sets.map(s => (
                             <div key={s.id} className="group p-5 bg-white/50 dark:bg-slate-800/50 hover:bg-white/80 dark:hover:bg-slate-800/80 border border-transparent hover:border-indigo-500/30 rounded-[2rem] transition-all duration-300 flex flex-col gap-4">
                                <div className="flex justify-between items-start">
-                                  <div>
-                                     <h4 className="font-bold text-lg text-slate-800 dark:text-white leading-tight mb-1">{s.name || 'Untitled Game'}</h4>
-                                     <p className="text-[10px] font-mono text-slate-500 uppercase tracking-wider">{s.songs.length} Tracks • {new Date(s.createdAt).toLocaleDateString()}</p>
-                                  </div>
-                                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                     <button onClick={() => exportSet(s)} className="p-2 bg-slate-200 dark:bg-white/10 rounded-full hover:text-fuchsia-500"><Share2 size={14}/></button>
-                                     <button onClick={() => { setSetDraft(s); setView('setBuilder'); }} className="p-2 bg-slate-200 dark:bg-white/10 rounded-full hover:text-indigo-500"><Edit3 size={14}/></button>
-                                  </div>
+                                  <div><h4 className="font-bold text-lg text-slate-800 dark:text-white leading-tight mb-1">{s.name || 'Untitled Game'}</h4><p className="text-[10px] font-mono text-slate-500 uppercase tracking-wider">{s.songs.length} Tracks • {new Date(s.createdAt).toLocaleDateString()}</p></div>
+                                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => exportSet(s)} className="p-2 bg-slate-200 dark:bg-white/10 rounded-full hover:text-fuchsia-500"><Share2 size={14}/></button><button onClick={() => { setSetDraft(s); setView('setBuilder'); }} className="p-2 bg-slate-200 dark:bg-white/10 rounded-full hover:text-indigo-500"><Edit3 size={14}/></button></div>
                                </div>
-                               <button onClick={() => startGame(s, 2)} className="w-full py-4 bg-slate-900 dark:bg-indigo-600 text-white rounded-2xl font-brand uppercase text-sm tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-lg flex items-center justify-center gap-2">
-                                  <PlayCircle size={18} /> Start Game
-                               </button>
+                               <button onClick={() => startGame(s, 2)} className="w-full py-4 bg-slate-900 dark:bg-indigo-600 text-white rounded-2xl font-brand uppercase text-sm tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-lg flex items-center justify-center gap-2"><PlayCircle size={18} /> Start Game</button>
                             </div>
                           ))
                        )}
@@ -685,88 +693,47 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* GAME VIEW */}
+        {/* GAME VIEW - (Unchanged content) */}
         {view === 'game' && gameState && activeSet && (
           <div className="absolute inset-0 z-50 flex flex-col items-center justify-center overflow-hidden">
-             {/* ... Game View Content (Unchanged) ... */}
+             {/* ... Game View Content ... */}
              <button onClick={() => { if(confirm("End game?")) { setGameState(null); setView('home'); }}} className="absolute top-6 left-6 z-50 p-4 bg-black/20 hover:bg-rose-600/80 backdrop-blur-md rounded-full text-white/50 hover:text-white transition-all group">
                <X size={24} />
                <span className="absolute left-full ml-3 top-1/2 -translate-y-1/2 bg-black/80 text-white text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">QUIT</span>
             </button>
-
-            {/* Top Scoreboard (Floating) */}
-            <div className="absolute top-12 z-[40] scale-110">
-               <Scoreboard teams={gameState.teams} currentTurnIndex={gameState.currentTurnTeamIndex} />
-            </div>
-
-            {/* Right Side Game Playlist Panel */}
+            <div className="absolute top-12 z-[40] scale-110"><Scoreboard teams={gameState.teams} currentTurnIndex={gameState.currentTurnTeamIndex} /></div>
             <div className="absolute top-24 bottom-32 right-6 w-64 z-[35] flex flex-col gap-2">
                <div className="bg-black/40 backdrop-blur-md rounded-2xl p-4 border border-white/5 flex items-center gap-2">
-                  <ListMusic size={16} className="text-indigo-400" />
-                  <span className="text-xs font-bold uppercase tracking-widest text-white/80">Playlist</span>
-                  <span className="ml-auto text-[10px] bg-white/10 px-2 py-0.5 rounded-full text-white/60">{gameState.currentSongIndex + 1}/{activeSet.songs.length}</span>
+                  <ListMusic size={16} className="text-indigo-400" /><span className="text-xs font-bold uppercase tracking-widest text-white/80">Playlist</span><span className="ml-auto text-[10px] bg-white/10 px-2 py-0.5 rounded-full text-white/60">{gameState.currentSongIndex + 1}/{activeSet.songs.length}</span>
                </div>
                <div className="flex-grow overflow-y-auto no-scrollbar space-y-2 pb-4">
                   {activeSet.songs.map((_, idx) => {
                      const isCurrent = idx === gameState.currentSongIndex;
                      const isPast = idx < gameState.currentSongIndex;
-                     // const isFuture = idx > gameState.currentSongIndex;
                      const songData = songs.find(s => s.id === activeSet.songs[gameState.shuffledIndices[idx]].songId);
-                     
                      return (
                         <div key={idx} className={`p-3 rounded-xl border flex items-center gap-3 transition-all ${isCurrent ? 'bg-indigo-600/80 border-indigo-400/50 shadow-lg scale-105 ml-[-10px]' : isPast ? 'bg-black/20 border-white/5 text-slate-400' : 'bg-transparent border-transparent opacity-50'}`}>
-                           <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${isCurrent ? 'bg-white text-indigo-600' : 'bg-white/10 text-white'}`}>
-                              {idx + 1}
-                           </div>
-                           <div className="truncate">
-                              {isCurrent ? (
-                                 <div className="text-xs font-bold text-white uppercase tracking-wider animate-pulse">Playing Now...</div>
-                              ) : isPast ? (
-                                 <div className="text-xs font-bold text-white/90 truncate">{songData?.title || 'Unknown Track'}</div>
-                              ) : (
-                                 <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Locked</div>
-                              )}
-                           </div>
+                           <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${isCurrent ? 'bg-white text-indigo-600' : 'bg-white/10 text-white'}`}>{idx + 1}</div>
+                           <div className="truncate">{isCurrent ? <div className="text-xs font-bold text-white uppercase tracking-wider animate-pulse">Playing Now...</div> : isPast ? <div className="text-xs font-bold text-white/90 truncate">{songData?.title || 'Unknown Track'}</div> : <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Locked</div>}</div>
                         </div>
                      )
                   })}
                </div>
             </div>
-
-            {/* Center Vinyl (Massive) */}
             <div className="relative z-10 flex items-center justify-center scale-125 md:scale-150 transition-transform duration-1000">
-               {/* Ambient Glow */}
                <div className={`absolute inset-0 bg-indigo-500/20 blur-[100px] rounded-full transition-opacity duration-500 ${isPlaying ? 'opacity-100' : 'opacity-0'}`}></div>
-               
-               {/* Record */}
                <div className={`w-[350px] h-[350px] rounded-full bg-[#0a0a0a] border-4 border-[#1a1a1a] shadow-2xl flex items-center justify-center vinyl-grooves relative ${isPlaying ? 'animate-spin-slow' : ''}`}>
                   <div className="absolute inset-0 rounded-full border border-white/5 pointer-events-none"></div>
-                  {/* Label */}
-                  <div className="w-32 h-32 rounded-full bg-gradient-to-tr from-indigo-600 to-fuchsia-600 flex items-center justify-center shadow-inner relative overflow-hidden">
-                     <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-30"></div>
-                     <Music size={40} className="text-white/80 drop-shadow-md" />
-                     <div className="absolute w-3 h-3 bg-black rounded-full"></div>
-                  </div>
+                  <div className="w-32 h-32 rounded-full bg-gradient-to-tr from-indigo-600 to-fuchsia-600 flex items-center justify-center shadow-inner relative overflow-hidden"><div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-30"></div><Music size={40} className="text-white/80 drop-shadow-md" /><div className="absolute w-3 h-3 bg-black rounded-full"></div></div>
                </div>
-
-               {/* Reveal Card (Pop over) */}
                <div className={`absolute z-20 bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl p-10 rounded-[3rem] shadow-2xl text-center border border-white/20 transition-all duration-500 ease-out transform ${gameState.isRevealed ? 'scale-100 opacity-100 translate-y-0' : 'scale-50 opacity-0 translate-y-20 pointer-events-none'}`}>
                   <h2 className="text-4xl md:text-5xl font-brand text-slate-900 dark:text-white mb-2 leading-none">{songs.find(s => s.id === (activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]].songId))?.title}</h2>
                   <p className="text-sm font-mono uppercase tracking-[0.4em] text-indigo-500">Correct Answer</p>
                </div>
             </div>
-
-            {/* Bottom Controls */}
             <div className="absolute bottom-10 z-[70]">
                <div className="flex items-center gap-2 p-2 rounded-full bg-black/60 dark:bg-slate-900/80 backdrop-blur-2xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
-                  {gameHistoryStack.length > 0 && (
-                    <div className="border-r border-white/10 pr-2 mr-1">
-                      <button onClick={performUndo} className="w-12 h-12 rounded-full flex items-center justify-center bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-all active:scale-95 group relative">
-                         <RotateCcw size={18} />
-                      </button>
-                    </div>
-                  )}
-
+                  {gameHistoryStack.length > 0 && (<div className="border-r border-white/10 pr-2 mr-1"><button onClick={performUndo} className="w-12 h-12 rounded-full flex items-center justify-center bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-all active:scale-95 group relative"><RotateCcw size={18} /></button></div>)}
                   <div className="flex gap-1 pr-4 border-r border-white/10">
                      {[
                        { l: 'INT', i: Play, c: 'bg-emerald-500 text-white', fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) toggleSegment(s.songId, 'intro', s.introStart||0, s.introEnd||5); } },
@@ -775,52 +742,25 @@ const App: React.FC = () => {
                        { l: 'BONUS', i: Star, c: 'bg-fuchsia-500 text-white', fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) toggleSegment(s.songId, 'bonus', s.bonusStart||10, s.bonusEnd||15); } },
                      ].map((b, idx) => {
                        const isActive = currentSegment === ['intro','main','hint','bonus'][idx]; 
-                       return (
-                         <button key={b.l} onClick={b.fn} className={`w-12 h-12 rounded-full flex items-center justify-center hover:scale-110 transition-all ${b.c} ${isActive && isPlaying ? 'ring-4 ring-white/30 animate-pulse' : ''}`} title={b.l}>
-                            {isActive && isPlaying ? <Pause size={18} fill="currentColor"/> : <b.i size={18} fill="currentColor"/>}
-                         </button>
-                       )
+                       return (<button key={b.l} onClick={b.fn} className={`w-12 h-12 rounded-full flex items-center justify-center hover:scale-110 transition-all ${b.c} ${isActive && isPlaying ? 'ring-4 ring-white/30 animate-pulse' : ''}`} title={b.l}>{isActive && isPlaying ? <Pause size={18} fill="currentColor"/> : <b.i size={18} fill="currentColor"/>}</button>)
                      })}
                   </div>
-
                   <div className="flex gap-2 pl-2">
-                     <button onClick={() => award(gameState.teams[gameState.currentTurnTeamIndex].id, 2)} className="px-6 h-12 bg-emerald-600 hover:bg-emerald-500 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg flex items-center gap-2 hover:-translate-y-0.5 transition-all">
-                        <CheckCircle size={18} /> Correct
-                     </button>
+                     <button onClick={() => award(gameState.teams[gameState.currentTurnTeamIndex].id, 2)} className="px-6 h-12 bg-emerald-600 hover:bg-emerald-500 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg flex items-center gap-2 hover:-translate-y-0.5 transition-all"><CheckCircle size={18} /> Correct</button>
                      {!gameState.isRevealed ? (
-                       <>
-                         <button onClick={triggerStealMode} className="px-6 h-12 bg-rose-600 hover:bg-rose-500 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg hover:-translate-y-0.5 transition-all">Wrong</button>
-                         <button onClick={triggerReveal} className="px-6 h-12 bg-slate-700 hover:bg-slate-600 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2">
-                            <Eye size={18} /> Reveal Identity
-                         </button>
-                       </>
-                     ) : (
-                       <button onClick={nextSong} className="px-6 h-12 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg flex items-center gap-2 hover:-translate-y-0.5 transition-all">Next <SkipForward size={18} /></button>
-                     )}
+                       <><button onClick={triggerStealMode} className="px-6 h-12 bg-rose-600 hover:bg-rose-500 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg hover:-translate-y-0.5 transition-all">Wrong</button><button onClick={triggerReveal} className="px-6 h-12 bg-slate-700 hover:bg-slate-600 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2"><Eye size={18} /> Reveal Identity</button></>
+                     ) : (<button onClick={nextSong} className="px-6 h-12 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg flex items-center gap-2 hover:-translate-y-0.5 transition-all">Next <SkipForward size={18} /></button>)}
                   </div>
                </div>
             </div>
-
-            {/* Steal Modal */}
             {stealMode && !scoredThisSong && (
                 <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-md flex items-center justify-center animate-in fade-in duration-200 pointer-events-none">
                    <div className="text-center w-full max-w-4xl px-4 pointer-events-auto pb-32 flex flex-col items-center">
                       <h3 className="text-5xl md:text-7xl font-brand text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-orange-500 animate-pulse drop-shadow-2xl mb-2">STEAL CHANCE</h3>
                       <p className="text-slate-400 uppercase tracking-widest text-xs mb-10">Who is attempting the steal?</p>
-                      
                       <div className="flex flex-col gap-4 w-full max-w-2xl">
                          {gameState.teams.map((t, i) => i !== gameState.currentTurnTeamIndex ? (
-                           <div key={t.id} className="flex items-center justify-between gap-4 bg-white/5 p-4 rounded-3xl border border-white/10 hover:border-white/20 transition-all">
-                              <span className="text-2xl font-brand text-white pl-4">{t.name}</span>
-                              <div className="flex gap-3">
-                                <button onClick={() => award(t.id, 1)} className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-bold uppercase tracking-wider shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-2 text-sm">
-                                   <CheckCircle size={18} /> Correct (+1)
-                                </button>
-                                <button onClick={handleStealFailed} className="px-6 py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl font-bold uppercase tracking-wider shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-2 text-sm">
-                                   <XCircle size={18} /> Wrong (0)
-                                </button>
-                              </div>
-                           </div>
+                           <div key={t.id} className="flex items-center justify-between gap-4 bg-white/5 p-4 rounded-3xl border border-white/10 hover:border-white/20 transition-all"><span className="text-2xl font-brand text-white pl-4">{t.name}</span><div className="flex gap-3"><button onClick={() => award(t.id, 1)} className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-bold uppercase tracking-wider shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-2 text-sm"><CheckCircle size={18} /> Correct (+1)</button><button onClick={handleStealFailed} className="px-6 py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl font-bold uppercase tracking-wider shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-2 text-sm"><XCircle size={18} /> Wrong (0)</button></div></div>
                          ) : null)}
                       </div>
                       <button onClick={() => { pushToHistory(); setStealMode(false); }} className="text-slate-500 hover:text-white font-bold uppercase tracking-[0.2em] text-xs mt-12 px-6 py-3 rounded-xl hover:bg-white/5 transition-colors">Skip Steal</button>
@@ -855,20 +795,10 @@ const App: React.FC = () => {
                       </div>
                    </div>
 
-                   {/* Library Tabs (Pills) */}
+                   {/* Library Tabs */}
                    <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar px-2">
                      {libraryCategories.map(cat => (
-                       <button
-                         key={cat}
-                         onClick={() => setActiveLibraryTab(cat)}
-                         className={`whitespace-nowrap px-6 py-2 rounded-full font-bold text-xs uppercase tracking-wider transition-all border ${
-                           activeLibraryTab === cat
-                             ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg scale-105'
-                             : 'bg-white/50 dark:bg-black/20 text-slate-600 dark:text-slate-400 border-transparent hover:bg-white dark:hover:bg-white/10'
-                         }`}
-                       >
-                         {cat}
-                       </button>
+                       <button key={cat} onClick={() => setActiveLibraryTab(cat)} className={`whitespace-nowrap px-6 py-2 rounded-full font-bold text-xs uppercase tracking-wider transition-all border ${activeLibraryTab === cat ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg scale-105' : 'bg-white/50 dark:bg-black/20 text-slate-600 dark:text-slate-400 border-transparent hover:bg-white dark:hover:bg-white/10'}`}>{cat}</button>
                      ))}
                    </div>
 
@@ -910,7 +840,33 @@ const App: React.FC = () => {
                     <div className="flex flex-col gap-6 h-full overflow-hidden">
                        <div className="glass-panel p-6 rounded-[2rem] space-y-4 shrink-0">
                           <input className="w-full bg-transparent text-3xl font-brand text-slate-900 dark:text-white placeholder:text-slate-400 outline-none border-b border-slate-200 dark:border-white/10 pb-2" placeholder="Game Name" value={setDraft.name} onChange={e => setSetDraft({...setDraft, name: e.target.value})} />
-                          <div className="flex justify-between items-center"><span className="text-xs font-bold uppercase text-slate-500">{setDraft.songs.length} Tracks</span><button onClick={saveSet} className="px-6 py-2 bg-emerald-500 text-white rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-emerald-600 transition-colors">Save Game</button></div>
+                          <div className="flex justify-between items-center">
+                              <span className="text-xs font-bold uppercase text-slate-500">{setDraft.songs.length} Tracks</span>
+                              
+                              {/* New Auto-Marker Button */}
+                              {setDraft.songs.length > 0 && !isAutoMarking && (
+                                <button 
+                                    onClick={() => handleAutoMark(false)} 
+                                    className="px-4 py-2 bg-fuchsia-600 text-white rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-fuchsia-500 transition-colors flex items-center gap-2 shadow-lg"
+                                    title="Automatically create Intro, Interlude 1, Interlude 2, and Vocal markers"
+                                >
+                                    <Wand2 size={14} /> Auto Markers
+                                </button>
+                              )}
+                              
+                              <button onClick={saveSet} className="px-6 py-2 bg-emerald-500 text-white rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-emerald-600 transition-colors flex items-center gap-2"><Save size={14}/> Save</button>
+                          </div>
+                          
+                          {/* Progress Bar */}
+                          {isAutoMarking && (
+                            <div className="w-full bg-slate-200 dark:bg-black/40 h-8 rounded-lg relative overflow-hidden flex items-center justify-center">
+                                <div className="absolute left-0 top-0 bottom-0 bg-fuchsia-500 transition-all duration-300" style={{width: `${(autoMarkProgress.current / autoMarkProgress.total) * 100}%`}}></div>
+                                <span className="relative z-10 text-[10px] font-bold uppercase text-slate-800 dark:text-white tracking-widest drop-shadow-sm">
+                                    Processing {autoMarkProgress.current} / {autoMarkProgress.total}
+                                </span>
+                            </div>
+                          )}
+
                        </div>
                        <div className="flex-grow overflow-y-auto glass-panel rounded-[2rem] p-2 space-y-2 custom-scrollbar">
                           {setDraft.songs.map((ss, idx) => {
@@ -920,7 +876,17 @@ const App: React.FC = () => {
                              return (
                                <div key={ss.songId} className={`p-4 rounded-xl flex items-center gap-4 transition-all ${isActive ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white/50 dark:bg-white/5 hover:bg-white/80 dark:hover:bg-white/10'}`}>
                                   <span className="font-mono font-bold opacity-50">{idx+1}</span>
-                                  <div className="flex-grow truncate font-bold">{s.title}</div>
+                                  <div className="flex-grow min-w-0">
+                                      <div className="truncate font-bold">{s.title}</div>
+                                      <div className="flex gap-2 mt-1">
+                                          {/* Status Icons */}
+                                          {ss.isManuallyEdited ? (
+                                            <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-500 flex items-center gap-1 border border-amber-500/30" title="Manually Edited"><Pencil size={8}/> Edited</span>
+                                          ) : ss.isAutoMarked ? (
+                                            <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-500 flex items-center gap-1 border border-emerald-500/30" title="Auto-Marked"><Wand2 size={8}/> Auto</span>
+                                          ) : null}
+                                      </div>
+                                  </div>
                                   <div className="flex gap-2">
                                      <button onClick={() => setEditingSongId(isActive ? null : ss.songId)} className={`p-2 rounded-lg ${isActive ? 'bg-white text-indigo-600' : 'bg-slate-200 dark:bg-white/10'}`}><Settings size={14}/></button>
                                      <button onClick={() => setSetDraft({...setDraft, songs: setDraft.songs.filter(x => x.songId !== ss.songId)})} className={`p-2 rounded-lg ${isActive ? 'text-indigo-200' : 'text-rose-400 hover:bg-rose-100'}`}><X size={14}/></button>
@@ -933,8 +899,59 @@ const App: React.FC = () => {
                     <div className="h-full overflow-hidden flex flex-col gap-6">
                        {editingSongId && editingSongConfig ? (
                           <div className="glass-panel p-6 rounded-[2rem] shadow-2xl relative h-full flex flex-col">
-                             <div className="flex justify-between items-center mb-6"><h3 className="font-brand text-xl dark:text-white">Region Editor</h3><button onClick={() => setEditingSongId(null)} className="text-xs font-bold uppercase bg-slate-200 dark:bg-white/10 px-3 py-1 rounded-lg">Close</button></div>
-                             <WaveformEditorLoader songId={editingSongId} clipStart={editingSongConfig.clipStart||0} clipEnd={editingSongConfig.clipEnd||5} hintStart={editingSongConfig.hintStart||5} hintEnd={editingSongConfig.hintEnd||10} introStart={editingSongConfig.introStart||0} introEnd={editingSongConfig.introEnd||5} bonusStart={editingSongConfig.bonusStart||10} bonusEnd={editingSongConfig.bonusEnd||15} onSave={(c, h, i, b) => { setSetDraft({...setDraft, songs: setDraft.songs.map(x => x.songId === editingSongId ? { ...x, clipStart: c.start, clipEnd: c.end, hintStart: h.start, hintEnd: h.end, introStart: i.start, introEnd: i.end, bonusStart: b.start, bonusEnd: b.end, isConfigured: true } : x)}); setEditingSongId(null); }} maxDuration={30} />
+                             <div className="flex justify-between items-center mb-6">
+                                 <div>
+                                    <h3 className="font-brand text-xl dark:text-white">Region Editor</h3>
+                                    <p className="text-[10px] uppercase tracking-widest text-slate-400">
+                                        {editingSongConfig.isManuallyEdited ? '✏️ Custom Edits' : editingSongConfig.isAutoMarked ? '✨ Auto-generated' : 'Manual Mode'}
+                                    </p>
+                                 </div>
+                                 <div className="flex gap-2">
+                                    <button 
+                                        onClick={async () => {
+                                            if(confirm('Re-run auto-marker for this track? This will overwrite your edits.')) {
+                                                const res = await autoMarkersService.processSong(editingSongId);
+                                                if (res) {
+                                                    setSetDraft({...setDraft, songs: setDraft.songs.map(x => x.songId === editingSongId ? {...x, ...res} : x)});
+                                                }
+                                            }
+                                        }}
+                                        className="text-xs font-bold uppercase bg-fuchsia-100 dark:bg-fuchsia-900/30 text-fuchsia-600 px-3 py-1 rounded-lg flex items-center gap-1 hover:bg-fuchsia-200"
+                                    >
+                                        <Wand2 size={10} /> Re-Auto
+                                    </button>
+                                    <button onClick={() => setEditingSongId(null)} className="text-xs font-bold uppercase bg-slate-200 dark:bg-white/10 px-3 py-1 rounded-lg">Close</button>
+                                 </div>
+                             </div>
+                             
+                             <WaveformEditorLoader 
+                                songId={editingSongId} 
+                                clipStart={editingSongConfig.clipStart||0} 
+                                clipEnd={editingSongConfig.clipEnd||5} 
+                                hintStart={editingSongConfig.hintStart||5} 
+                                hintEnd={editingSongConfig.hintEnd||10} 
+                                introStart={editingSongConfig.introStart||0} 
+                                introEnd={editingSongConfig.introEnd||5} 
+                                bonusStart={editingSongConfig.bonusStart||10} 
+                                bonusEnd={editingSongConfig.bonusEnd||15} 
+                                onSave={(c, h, i, b) => { 
+                                    setSetDraft({
+                                        ...setDraft, 
+                                        songs: setDraft.songs.map(x => x.songId === editingSongId ? { 
+                                            ...x, 
+                                            clipStart: c.start, clipEnd: c.end, 
+                                            hintStart: h.start, hintEnd: h.end, 
+                                            introStart: i.start, introEnd: i.end, 
+                                            bonusStart: b.start, bonusEnd: b.end, 
+                                            isConfigured: true,
+                                            isManuallyEdited: true, // Mark as edited on save
+                                            isAutoMarked: false     // Clear auto flag on edit
+                                        } : x)
+                                    }); 
+                                    setEditingSongId(null); 
+                                }} 
+                                maxDuration={30} 
+                             />
                           </div>
                        ) : (
                           <div className="glass-panel p-6 rounded-[2rem] h-full flex flex-col">
@@ -943,18 +960,8 @@ const App: React.FC = () => {
                              {/* Library Filter Dropdown */}
                              <div className="mb-4 flex gap-2">
                                 <div className="relative w-1/3">
-                                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                                        <Filter size={14} className="text-slate-500" />
-                                    </div>
-                                    <select 
-                                        value={builderLibraryFilter}
-                                        onChange={(e) => setBuilderLibraryFilter(e.target.value)}
-                                        className="w-full bg-slate-100 dark:bg-black/20 text-slate-700 dark:text-slate-300 rounded-xl py-3 pl-10 pr-4 text-xs font-bold uppercase tracking-wide appearance-none outline-none focus:ring-2 ring-indigo-500/50 cursor-pointer"
-                                    >
-                                        {libraryCategories.map(cat => (
-                                            <option key={cat} value={cat}>{cat} Tracks</option>
-                                        ))}
-                                    </select>
+                                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none"><Filter size={14} className="text-slate-500" /></div>
+                                    <select value={builderLibraryFilter} onChange={(e) => setBuilderLibraryFilter(e.target.value)} className="w-full bg-slate-100 dark:bg-black/20 text-slate-700 dark:text-slate-300 rounded-xl py-3 pl-10 pr-4 text-xs font-bold uppercase tracking-wide appearance-none outline-none focus:ring-2 ring-indigo-500/50 cursor-pointer">{libraryCategories.map(cat => (<option key={cat} value={cat}>{cat} Tracks</option>))}</select>
                                 </div>
                                 <input className="w-2/3 bg-slate-100 dark:bg-black/20 rounded-xl py-3 px-4 text-sm outline-none" placeholder="Search song name..." value={librarySearch} onChange={e => setLibrarySearch(e.target.value)} />
                              </div>
@@ -964,9 +971,7 @@ const App: React.FC = () => {
                                     <div className="text-center py-8 text-slate-400 text-xs uppercase tracking-widest">No matching songs found</div>
                                 ) : (
                                     filteredSongs.map(s => {
-                                        // Only show songs that match the builder library filter
                                         if (builderLibraryFilter !== 'All' && (s.category || 'General') !== builderLibraryFilter) return null;
-
                                         const inSet = setDraft.songs.some(x => x.songId === s.id);
                                         const sel = selectedPickerIds.has(s.id);
                                         return (
@@ -974,11 +979,7 @@ const App: React.FC = () => {
                                                 {sel ? <CheckSquare size={18} className="text-indigo-500"/> : <Square size={18} className="text-slate-400"/>}
                                                 <div className="overflow-hidden">
                                                     <div className="truncate text-sm font-bold dark:text-white">{s.title}</div>
-                                                    <div className="text-[10px] text-slate-500 flex items-center gap-2">
-                                                        <span>{s.category || 'General'}</span>
-                                                        <span>•</span>
-                                                        <span className="truncate">{s.filename}</span>
-                                                    </div>
+                                                    <div className="text-[10px] text-slate-500 flex items-center gap-2"><span>{s.category || 'General'}</span><span>•</span><span className="truncate">{s.filename}</span></div>
                                                 </div>
                                             </div>
                                         )
@@ -997,11 +998,7 @@ const App: React.FC = () => {
                     <h2 className="text-5xl font-brand text-center mb-12 dark:text-white">Hall of Fame</h2>
                     {history.map(h => (
                        <div key={h.id} className="glass-panel p-8 rounded-[2.5rem] flex flex-col md:flex-row justify-between items-center gap-8 relative group">
-                          {h.setId && (
-                            <button onClick={() => handleReplay(h.setId)} className="absolute top-6 right-6 p-3 bg-white/20 hover:bg-indigo-600 text-slate-500 hover:text-white rounded-xl transition-all shadow-md group-hover:scale-105" title="Replay this game">
-                               <Repeat size={20} />
-                            </button>
-                          )}
+                          {h.setId && (<button onClick={() => handleReplay(h.setId)} className="absolute top-6 right-6 p-3 bg-white/20 hover:bg-indigo-600 text-slate-500 hover:text-white rounded-xl transition-all shadow-md group-hover:scale-105" title="Replay this game"><Repeat size={20} /></button>)}
                           <div className="text-center md:text-left"><h4 className="text-2xl font-bold dark:text-white">{h.setName}</h4><p className="text-sm font-mono text-slate-500">{new Date(h.dateTime).toLocaleDateString()}</p></div>
                           <div className="flex gap-4">{h.teams.map((t, i) => (<div key={t.id} className={`px-6 py-4 rounded-2xl border flex flex-col items-center min-w-[100px] ${i===0?'bg-amber-100/50 border-amber-200':'bg-white/50 border-slate-100'}`}><span className="text-[10px] font-bold uppercase tracking-widest opacity-60">{t.name}</span><span className="text-3xl font-brand text-slate-800">{t.score}</span></div>))}</div>
                        </div>
