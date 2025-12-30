@@ -1,3 +1,4 @@
+
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Library,
@@ -57,6 +58,7 @@ import {
   FastForward,
   PlayCircle,
   Eye,
+  EyeOff,
   ListMusic,
   RotateCcw,
   Repeat,
@@ -70,7 +72,8 @@ import {
   BookOpen,
   HelpCircle,
   MousePointerClick,
-  Layers
+  Layers,
+  Award
 } from 'lucide-react';
 
 import { GameResult, GameSet, GameSetSong, GameState, Song, Team, Platform } from './types';
@@ -188,6 +191,10 @@ const App: React.FC = () => {
   const [playingSongId, setPlayingSongId] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentSegment, setCurrentSegment] = useState<string | null>(null);
+  
+  // New Game Logic Features
+  const [currentRoundPoints, setCurrentRoundPoints] = useState<number>(0);
+  const [isHostMode, setIsHostMode] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const stopTimerRef = useRef<number | null>(null);
@@ -311,7 +318,10 @@ const App: React.FC = () => {
     if (audioRef.current) audioRef.current.pause();
   };
 
-  const toggleSegment = async (songId: string, segmentLabel: string, start: number, end: number) => {
+  const toggleSegment = async (songId: string, segmentLabel: string, start: number, end: number, points: number) => {
+    // Set points for the current attempt
+    setCurrentRoundPoints(points);
+
     const a = audioRef.current;
     if (!a) return;
 
@@ -486,7 +496,15 @@ const App: React.FC = () => {
             // Merge results
             const idx = newSongsList.findIndex(s => s.songId === songConfig.songId);
             if (idx !== -1) {
-                newSongsList[idx] = { ...newSongsList[idx], ...result };
+                newSongsList[idx] = { 
+                    ...newSongsList[idx], 
+                    ...result,
+                    // Default Points for Auto-Marked songs
+                    introPoints: 4, 
+                    clipPoints: 3, 
+                    hintPoints: 2, 
+                    bonusPoints: 1 
+                };
             }
         }
 
@@ -573,6 +591,10 @@ const App: React.FC = () => {
     pushToHistory(); // Save state before change
     const isLast = gameState.currentSongIndex >= activeSet.songs.length - 1;
     stopAudio(); // Ensure audio stops between tracks
+    // Reset round state
+    setCurrentSegment(null);
+    setCurrentRoundPoints(0);
+    
     if (isLast) { 
         const result: GameResult = { 
             id: crypto.randomUUID(), 
@@ -707,6 +729,26 @@ const App: React.FC = () => {
                <X size={24} />
                <span className="absolute left-full ml-3 top-1/2 -translate-y-1/2 bg-black/80 text-white text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">QUIT</span>
             </button>
+            
+            {/* Host Mode Toggle */}
+            <button onClick={() => setIsHostMode(!isHostMode)} className="absolute top-6 right-6 z-50 p-4 bg-black/20 hover:bg-indigo-600/80 backdrop-blur-md rounded-full text-white/50 hover:text-white transition-all group" title={isHostMode ? "Switch to Public View" : "Switch to Host View"}>
+               {isHostMode ? <Eye size={24} className="text-emerald-400" /> : <EyeOff size={24} />}
+               <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-black/80 text-white text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">HOST MODE</span>
+            </button>
+
+            {/* Host Intel Box */}
+            {isHostMode && (
+                <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 px-6 py-2 bg-black/60 border border-emerald-500/30 rounded-full backdrop-blur-xl animate-in fade-in slide-in-from-top-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                        <span className="text-[10px] font-black uppercase text-emerald-500 tracking-widest">HOST INTEL</span>
+                        <span className="text-sm font-bold text-white/90">
+                            {songs.find(s => s.id === (activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]].songId))?.title}
+                        </span>
+                    </div>
+                </div>
+            )}
+
             <div className="absolute top-12 z-[40] scale-110"><Scoreboard teams={gameState.teams} currentTurnIndex={gameState.currentTurnTeamIndex} /></div>
             <div className="absolute top-24 bottom-32 right-6 w-64 z-[35] flex flex-col gap-2">
                <div className="bg-black/40 backdrop-blur-md rounded-2xl p-4 border border-white/5 flex items-center gap-2">
@@ -742,19 +784,38 @@ const App: React.FC = () => {
                   {gameHistoryStack.length > 0 && (<div className="border-r border-white/10 pr-2 mr-1"><button onClick={performUndo} className="w-12 h-12 rounded-full flex items-center justify-center bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white transition-all active:scale-95 group relative"><RotateCcw size={18} /></button></div>)}
                   <div className="flex gap-1 pr-4 border-r border-white/10">
                      {[
-                       { l: 'INT', i: Play, c: 'bg-emerald-500 text-white', fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) toggleSegment(s.songId, 'intro', s.introStart||0, s.introEnd||5); } },
-                       { l: 'MAIN', i: Zap, c: 'bg-indigo-500 text-white', fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) toggleSegment(s.songId, 'main', s.clipStart, s.clipEnd); } },
-                       { l: 'HINT', i: Sparkles, c: 'bg-amber-500 text-white', fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) toggleSegment(s.songId, 'hint', s.hintStart, s.hintEnd); } },
-                       { l: 'BONUS', i: Star, c: 'bg-fuchsia-500 text-white', fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) toggleSegment(s.songId, 'bonus', s.bonusStart||10, s.bonusEnd||15); } },
+                       { l: 'CLUE 1', i: Play, c: 'bg-emerald-500 text-white', 
+                         pts: activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]].introPoints || 4,
+                         fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) toggleSegment(s.songId, 'intro', s.introStart||0, s.introEnd||5, s.introPoints || 4); } },
+                       { l: 'CLUE 2', i: Zap, c: 'bg-indigo-500 text-white', 
+                         pts: activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]].clipPoints || 3,
+                         fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) toggleSegment(s.songId, 'main', s.clipStart, s.clipEnd, s.clipPoints || 3); } },
+                       { l: 'CLUE 3', i: Sparkles, c: 'bg-amber-500 text-white', 
+                         pts: activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]].hintPoints || 2,
+                         fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) toggleSegment(s.songId, 'hint', s.hintStart, s.hintEnd, s.hintPoints || 2); } },
+                       { l: 'CLUE 4', i: Star, c: 'bg-fuchsia-500 text-white', 
+                         pts: activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]].bonusPoints || 1,
+                         fn: () => { const s = activeSet?.songs[gameState.shuffledIndices[gameState.currentSongIndex]]; if(s) toggleSegment(s.songId, 'bonus', s.bonusStart||10, s.bonusEnd||15, s.bonusPoints || 1); } },
                      ].map((b, idx) => {
                        const isActive = currentSegment === ['intro','main','hint','bonus'][idx]; 
-                       return (<button key={b.l} onClick={b.fn} className={`w-12 h-12 rounded-full flex items-center justify-center hover:scale-110 transition-all ${b.c} ${isActive && isPlaying ? 'ring-4 ring-white/30 animate-pulse' : ''}`} title={b.l}>{isActive && isPlaying ? <Pause size={18} fill="currentColor"/> : <b.i size={18} fill="currentColor"/>}</button>)
+                       return (
+                         <button key={b.l} onClick={b.fn} className={`w-14 h-14 rounded-full flex flex-col items-center justify-center hover:scale-110 transition-all ${b.c} ${isActive && isPlaying ? 'ring-4 ring-white/30 animate-pulse' : ''}`} title={`${b.l} (${b.pts} pts)`}>
+                            {isActive && isPlaying ? <Pause size={16} fill="currentColor"/> : <b.i size={16} fill="currentColor"/>}
+                            <span className="text-[9px] font-black leading-none mt-1">{b.pts}</span>
+                         </button>
+                       )
                      })}
                   </div>
                   <div className="flex gap-2 pl-2">
-                     <button onClick={() => award(gameState.teams[gameState.currentTurnTeamIndex].id, 2)} className="px-6 h-12 bg-emerald-600 hover:bg-emerald-500 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg flex items-center gap-2 hover:-translate-y-0.5 transition-all"><CheckCircle size={18} /> Correct</button>
+                     <button 
+                        onClick={() => award(gameState.teams[gameState.currentTurnTeamIndex].id, currentRoundPoints)} 
+                        disabled={currentRoundPoints === 0}
+                        className={`px-6 h-12 rounded-full font-brand text-sm tracking-widest uppercase shadow-lg flex items-center gap-2 transition-all ${currentRoundPoints > 0 ? 'bg-emerald-600 hover:bg-emerald-500 text-white hover:-translate-y-0.5' : 'bg-slate-700 text-slate-500 cursor-not-allowed'}`}
+                     >
+                        <CheckCircle size={18} /> Correct {currentRoundPoints > 0 && `(+${currentRoundPoints})`}
+                     </button>
                      {!gameState.isRevealed ? (
-                       <><button onClick={triggerStealMode} className="px-6 h-12 bg-rose-600 hover:bg-rose-500 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg hover:-translate-y-0.5 transition-all">Wrong</button><button onClick={triggerReveal} className="px-6 h-12 bg-slate-700 hover:bg-slate-600 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2"><Eye size={18} /> Reveal Identity</button></>
+                       <><button onClick={triggerStealMode} className="px-6 h-12 bg-rose-600 hover:bg-rose-500 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg hover:-translate-y-0.5 transition-all">Wrong</button><button onClick={triggerReveal} className="px-6 h-12 bg-slate-700 hover:bg-slate-600 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2"><Eye size={18} /> Reveal</button></>
                      ) : (<button onClick={nextSong} className="px-6 h-12 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full font-brand text-sm tracking-widest uppercase shadow-lg flex items-center gap-2 hover:-translate-y-0.5 transition-all">Next <SkipForward size={18} /></button>)}
                   </div>
                </div>
@@ -853,23 +914,23 @@ const App: React.FC = () => {
                                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                                          <div className="bg-emerald-500 text-white p-3 rounded-xl text-center shadow-lg transform hover:-translate-y-1 transition-transform">
                                              <Play size={20} className="mx-auto mb-1"/>
-                                             <div className="text-[10px] font-black uppercase">Intro</div>
+                                             <div className="text-[10px] font-black uppercase">Clue 1</div>
                                          </div>
                                          <div className="bg-indigo-500 text-white p-3 rounded-xl text-center shadow-lg transform hover:-translate-y-1 transition-transform">
                                              <Zap size={20} className="mx-auto mb-1"/>
-                                             <div className="text-[10px] font-black uppercase">Interlude</div>
+                                             <div className="text-[10px] font-black uppercase">Clue 2</div>
                                          </div>
                                          <div className="bg-amber-500 text-white p-3 rounded-xl text-center shadow-lg transform hover:-translate-y-1 transition-transform">
                                              <Sparkles size={20} className="mx-auto mb-1"/>
-                                             <div className="text-[10px] font-black uppercase">Hint</div>
+                                             <div className="text-[10px] font-black uppercase">Clue 3</div>
                                          </div>
                                          <div className="bg-fuchsia-500 text-white p-3 rounded-xl text-center shadow-lg transform hover:-translate-y-1 transition-transform">
                                              <Star size={20} className="mx-auto mb-1"/>
-                                             <div className="text-[10px] font-black uppercase">Vocal</div>
+                                             <div className="text-[10px] font-black uppercase">Clue 4</div>
                                          </div>
                                      </div>
                                      <div className="p-4 bg-slate-100 dark:bg-white/5 rounded-2xl text-sm text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-white/5">
-                                         <strong className="text-slate-900 dark:text-white">Pro Tip:</strong> If a team guesses wrong, hit <span className="font-bold text-rose-500 uppercase">Wrong</span> to trigger <span className="font-bold text-orange-500 uppercase">Steal Mode</span>. Other teams can buzz in to steal the point!
+                                         <strong className="text-slate-900 dark:text-white">Pro Tip:</strong> Toggle the <strong>Host Mode</strong> (Eye Icon) to see the answer privately before revealing it to the room.
                                      </div>
                                  </div>
                              </div>
@@ -1032,26 +1093,30 @@ const App: React.FC = () => {
                                 songId={editingSongId}
                                 clipStart={editingSongConfig.clipStart || 0}
                                 clipEnd={editingSongConfig.clipEnd || 5}
+                                clipPoints={editingSongConfig.clipPoints}
                                 hintStart={editingSongConfig.hintStart || 5}
                                 hintEnd={editingSongConfig.hintEnd || 10}
+                                hintPoints={editingSongConfig.hintPoints}
                                 introStart={editingSongConfig.introStart || 0}
                                 introEnd={editingSongConfig.introEnd || 5}
+                                introPoints={editingSongConfig.introPoints}
                                 bonusStart={editingSongConfig.bonusStart || 10}
                                 bonusEnd={editingSongConfig.bonusEnd || 15}
+                                bonusPoints={editingSongConfig.bonusPoints}
                                 onSave={(
-                                  clip: { start: number; end: number },
-                                  hint: { start: number; end: number },
-                                  intro: { start: number; end: number },
-                                  bonus: { start: number; end: number }
+                                  clip: { start: number; end: number, points: number },
+                                  hint: { start: number; end: number, points: number },
+                                  intro: { start: number; end: number, points: number },
+                                  bonus: { start: number; end: number, points: number }
                                 ) => {
                                     setSetDraft({
                                         ...setDraft,
                                         songs: setDraft.songs.map(s => s.songId === editingSongId ? {
                                             ...s,
-                                            clipStart: clip.start, clipEnd: clip.end,
-                                            hintStart: hint.start, hintEnd: hint.end,
-                                            introStart: intro.start, introEnd: intro.end,
-                                            bonusStart: bonus.start, bonusEnd: bonus.end,
+                                            clipStart: clip.start, clipEnd: clip.end, clipPoints: clip.points,
+                                            hintStart: hint.start, hintEnd: hint.end, hintPoints: hint.points,
+                                            introStart: intro.start, introEnd: intro.end, introPoints: intro.points,
+                                            bonusStart: bonus.start, bonusEnd: bonus.end, bonusPoints: bonus.points,
                                             isManuallyEdited: true,
                                             isConfigured: true
                                         } : s)

@@ -15,15 +15,26 @@ export interface Song {
 
 export interface GameSetSong {
   songId: string;
+  
+  // Clue 2 (Main/Clip)
   clipStart: number;
   clipEnd: number;
+  clipPoints?: number;
+
+  // Clue 3 (Hint)
   hintStart: number;
   hintEnd: number;
-  // New Regions
+  hintPoints?: number;
+
+  // Clue 1 (Intro)
   introStart?: number;
   introEnd?: number;
+  introPoints?: number;
+
+  // Clue 4 (Bonus/Vocal)
   bonusStart?: number;
   bonusEnd?: number;
+  bonusPoints?: number;
   
   orderIndex: number;
   isConfigured?: boolean; // Tracks if the user has saved custom regions

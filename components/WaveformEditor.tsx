@@ -1,22 +1,41 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Play, Pause, RotateCcw, Save, Info, Check, CheckCircle2, MousePointerClick } from 'lucide-react';
+import { Play, Pause, RotateCcw, Save, Info, Check, CheckCircle2, MousePointerClick, Trophy } from 'lucide-react';
+
+interface RegionData {
+  start: number;
+  end: number;
+  points: number;
+}
 
 interface WaveformEditorProps {
   url: string;
+  
+  // Clue 2
   clipStart: number;
   clipEnd: number;
+  clipPoints?: number;
+  
+  // Clue 3
   hintStart: number;
   hintEnd: number;
+  hintPoints?: number;
+  
+  // Clue 1
   introStart?: number;
   introEnd?: number;
+  introPoints?: number;
+  
+  // Clue 4
   bonusStart?: number;
   bonusEnd?: number;
+  bonusPoints?: number;
+
   onSave: (
-    clip: {start: number, end: number}, 
-    hint: {start: number, end: number},
-    intro: {start: number, end: number},
-    bonus: {start: number, end: number}
+    clip: RegionData, 
+    hint: RegionData,
+    intro: RegionData,
+    bonus: RegionData
   ) => void;
   maxDuration?: number;
 }
@@ -24,18 +43,18 @@ interface WaveformEditorProps {
 type RegionType = 'intro' | 'main' | 'hint' | 'bonus';
 
 const REGION_CONFIG = {
-  intro: { label: 'Intro', color: 'rgba(16, 185, 129, 0.5)', colorDim: 'rgba(16, 185, 129, 0.1)' },
-  main: { label: 'Interlude 1', color: 'rgba(79, 70, 229, 0.6)', colorDim: 'rgba(79, 70, 229, 0.1)' },
-  hint: { label: 'Interlude 2', color: 'rgba(245, 158, 11, 0.6)', colorDim: 'rgba(245, 158, 11, 0.1)' },
-  bonus: { label: 'Vocal', color: 'rgba(244, 63, 94, 0.5)', colorDim: 'rgba(244, 63, 94, 0.1)' }
+  intro: { label: 'Clue 1', color: 'rgba(16, 185, 129, 0.5)', colorDim: 'rgba(16, 185, 129, 0.1)' }, // Green
+  main:  { label: 'Clue 2', color: 'rgba(79, 70, 229, 0.6)', colorDim: 'rgba(79, 70, 229, 0.1)' }, // Indigo
+  hint:  { label: 'Clue 3', color: 'rgba(245, 158, 11, 0.6)', colorDim: 'rgba(245, 158, 11, 0.1)' }, // Amber
+  bonus: { label: 'Clue 4', color: 'rgba(244, 63, 94, 0.5)', colorDim: 'rgba(244, 63, 94, 0.1)' }  // Rose
 };
 
 const WaveformEditor: React.FC<WaveformEditorProps> = ({ 
   url, 
-  clipStart, clipEnd, 
-  hintStart, hintEnd, 
-  introStart = 0, introEnd = 5,
-  bonusStart = 10, bonusEnd = 15,
+  clipStart, clipEnd, clipPoints = 3,
+  hintStart, hintEnd, hintPoints = 2,
+  introStart = 0, introEnd = 5, introPoints = 4,
+  bonusStart = 10, bonusEnd = 15, bonusPoints = 1,
   onSave, 
   maxDuration = 30 
 }) => {
@@ -46,12 +65,12 @@ const WaveformEditor: React.FC<WaveformEditorProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeRegion, setActiveRegion] = useState<RegionType>('intro');
 
-  // Keep track of regions values in state for saving
+  // Keep track of regions values and points in state
   const [regionsState, setRegionsState] = useState({
-    intro: { start: introStart, end: introEnd || 5 },
-    main: { start: clipStart, end: clipEnd },
-    hint: { start: hintStart, end: hintEnd },
-    bonus: { start: bonusStart, end: bonusEnd },
+    intro: { start: introStart, end: introEnd || 5, points: introPoints },
+    main:  { start: clipStart, end: clipEnd, points: clipPoints },
+    hint:  { start: hintStart, end: hintEnd, points: hintPoints },
+    bonus: { start: bonusStart, end: bonusEnd, points: bonusPoints },
   });
 
   // Initialize WaveSurfer
@@ -119,7 +138,7 @@ const WaveformEditor: React.FC<WaveformEditorProps> = ({
 
         setRegionsState(prev => ({
           ...prev,
-          [region.id]: { start: s, end: e }
+          [region.id]: { ...prev[region.id as RegionType], start: s, end: e }
         }));
       });
       
@@ -176,12 +195,19 @@ const WaveformEditor: React.FC<WaveformEditorProps> = ({
     wavesurferRef.current.play(reg.start, reg.end);
   };
 
+  const setPoints = (pts: number) => {
+    setRegionsState(prev => ({
+      ...prev,
+      [activeRegion]: { ...prev[activeRegion], points: pts }
+    }));
+  };
+
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl overflow-hidden shadow-xl transition-colors">
       <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2">
            <MousePointerClick className="text-indigo-600 dark:text-indigo-400" size={20} />
-           <span className="font-brand text-slate-600 dark:text-slate-300 uppercase text-xs tracking-widest">Select region to edit</span>
+           <span className="font-brand text-slate-600 dark:text-slate-300 uppercase text-xs tracking-widest">Select clue to edit</span>
         </div>
         <div className="flex items-center gap-2 text-[10px] text-slate-400 dark:text-slate-500 uppercase font-black tracking-widest">
           <Info size={14} /> Drag to move • Max {maxDuration}s
@@ -194,32 +220,33 @@ const WaveformEditor: React.FC<WaveformEditorProps> = ({
       
       <div className="p-6 bg-slate-50/50 dark:bg-slate-800/30 flex flex-col gap-6 border-t border-slate-100 dark:border-slate-800">
         
-        {/* Editor Tabs - Clicking these sets the Focus Mode */}
+        {/* Editor Tabs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <RegionToggle 
-            type="intro" 
-            isActive={activeRegion === 'intro'} 
-            onClick={() => setActiveRegion('intro')} 
-            range={regionsState.intro}
-          />
-          <RegionToggle 
-            type="main" 
-            isActive={activeRegion === 'main'} 
-            onClick={() => setActiveRegion('main')} 
-            range={regionsState.main}
-          />
-          <RegionToggle 
-            type="hint" 
-            isActive={activeRegion === 'hint'} 
-            onClick={() => setActiveRegion('hint')} 
-            range={regionsState.hint}
-          />
-          <RegionToggle 
-            type="bonus" 
-            isActive={activeRegion === 'bonus'} 
-            onClick={() => setActiveRegion('bonus')} 
-            range={regionsState.bonus}
-          />
+          {(['intro', 'main', 'hint', 'bonus'] as RegionType[]).map((type) => (
+             <RegionToggle 
+               key={type}
+               type={type} 
+               isActive={activeRegion === type} 
+               onClick={() => setActiveRegion(type)} 
+               range={regionsState[type]}
+             />
+          ))}
+        </div>
+
+        {/* Score Selector for Active Region */}
+        <div className="flex items-center justify-center gap-4 bg-white/50 dark:bg-white/5 p-4 rounded-2xl border border-slate-200 dark:border-white/5">
+             <span className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Score Value for {REGION_CONFIG[activeRegion].label}:</span>
+             <div className="flex gap-2">
+                {[4, 3, 2, 1].map(pts => (
+                   <button 
+                     key={pts}
+                     onClick={() => setPoints(pts)}
+                     className={`w-10 h-10 rounded-full font-brand text-lg flex items-center justify-center transition-all ${regionsState[activeRegion].points === pts ? 'bg-fuchsia-600 text-white scale-110 shadow-lg' : 'bg-slate-200 dark:bg-white/10 text-slate-400 hover:bg-slate-300 dark:hover:bg-white/20'}`}
+                   >
+                     {pts}
+                   </button>
+                ))}
+             </div>
         </div>
 
         <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-200 dark:border-slate-700/50">
@@ -244,7 +271,7 @@ const WaveformEditor: React.FC<WaveformEditorProps> = ({
   );
 };
 
-const RegionToggle = ({ type, isActive, onClick, range }: { type: RegionType, isActive: boolean, onClick: () => void, range: {start: number, end: number} }) => {
+const RegionToggle = ({ type, isActive, onClick, range }: { type: RegionType, isActive: boolean, onClick: () => void, range: RegionData }) => {
   const conf = REGION_CONFIG[type];
   
   // Dynamic classes for colors
@@ -263,7 +290,10 @@ const RegionToggle = ({ type, isActive, onClick, range }: { type: RegionType, is
       className={`relative px-4 py-4 rounded-2xl border transition-all duration-200 flex flex-col items-center gap-1 shadow-sm ${isActive ? activeClasses[type] : inactiveClasses} ${isActive ? 'scale-105 z-10' : 'hover:-translate-y-1'}`}
     >
       {isActive && <div className="absolute -top-2 left-1/2 -translate-x-1/2 bg-white dark:bg-slate-900 text-[10px] font-black uppercase px-2 py-0.5 rounded-full shadow-sm text-slate-900 dark:text-white tracking-widest border border-slate-100 dark:border-slate-700">Editing</div>}
-      <span className="font-brand text-lg uppercase leading-none">{conf.label}</span>
+      <div className="flex items-center gap-2">
+         <span className="font-brand text-lg uppercase leading-none">{conf.label}</span>
+         <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${isActive ? 'bg-white/20' : 'bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-400'}`}>{range.points} pts</span>
+      </div>
       <span className={`font-mono text-[10px] ${isActive ? 'opacity-80' : 'opacity-40'}`}>
         {range.start.toFixed(1)}s - {range.end.toFixed(1)}s
       </span>
