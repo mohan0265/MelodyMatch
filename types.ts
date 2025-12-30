@@ -69,6 +69,7 @@ export interface GameState {
   stealAttempted: boolean;
   isFinished: boolean;
   shuffledIndices: number[];
+  playedIndices: number[]; // Tracks indices that have been fully quizzed
 }
 
 export interface GameResult {

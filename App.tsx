@@ -73,7 +73,9 @@ import {
   HelpCircle,
   MousePointerClick,
   Layers,
-  Award
+  Award,
+  RefreshCw,
+  Lock
 } from 'lucide-react';
 
 import { GameResult, GameSet, GameSetSong, GameState, Song, Team, Platform } from './types';
@@ -264,8 +266,19 @@ const App: React.FC = () => {
       setSongs(s.sort((a, b) => b.addedAt - a.addedAt));
       setSets(gs.sort((a, b) => b.createdAt - a.createdAt));
       setHistory(h.sort((a, b) => b.dateTime - a.dateTime));
+      
       const savedDraft = localStorage.getItem('mm_active_draft');
       if (savedDraft) setSetDraft(JSON.parse(savedDraft));
+      
+      // Load active game state if exists
+      const savedGame = localStorage.getItem('mm_active_game');
+      if (savedGame) {
+          const parsed = JSON.parse(savedGame);
+          setGameState(parsed);
+          // Also set active set if we have a saved game
+          const relatedSet = gs.find(set => set.id === parsed.setId);
+          if (relatedSet) setActiveSet(relatedSet);
+      }
     })();
   }, []);
 
@@ -273,6 +286,15 @@ const App: React.FC = () => {
     if (setDraft) localStorage.setItem('mm_active_draft', JSON.stringify(setDraft));
     else localStorage.removeItem('mm_active_draft');
   }, [setDraft]);
+
+  // Persist Game State
+  useEffect(() => {
+    if (gameState) {
+        localStorage.setItem('mm_active_game', JSON.stringify(gameState));
+    } else {
+        localStorage.removeItem('mm_active_game');
+    }
+  }, [gameState]);
 
   useEffect(() => {
     const a = audioRef.current;
@@ -525,11 +547,35 @@ const App: React.FC = () => {
     const teams: Team[] = Array.from({ length: teamsCount }).map((_, i) => ({ id: crypto.randomUUID(), name: `Team ${i + 1}`, score: 0 }));
     const indices = Array.from({ length: set.songs.length }).map((_, i) => i).sort(() => Math.random() - 0.5);
     setActiveSet(set); 
-    setGameState({ id: crypto.randomUUID(), setId: set.id, teams, currentSongIndex: 0, currentTurnTeamIndex: 0, isRevealed: false, stealAttempted: false, isFinished: false, shuffledIndices: indices }); 
+    setGameState({ 
+        id: crypto.randomUUID(), 
+        setId: set.id, 
+        teams, 
+        currentSongIndex: 0, 
+        currentTurnTeamIndex: 0, 
+        isRevealed: false, 
+        stealAttempted: false, 
+        isFinished: false, 
+        shuffledIndices: indices,
+        playedIndices: [] 
+    }); 
     setStealMode(false); 
     setScoredThisSong(false); 
     setGameHistoryStack([]); // Clear undo history on new game
     setView('game');
+  };
+
+  // Resume an existing game
+  const resumeGame = (savedState: GameState) => {
+      const relatedSet = sets.find(s => s.id === savedState.setId);
+      if (relatedSet) {
+          setActiveSet(relatedSet);
+          setGameState(savedState);
+          setView('game');
+      } else {
+          alert("Cannot resume: Game Set data is missing.");
+          setGameState(null); // Clear invalid state
+      }
   };
 
   const handleReplay = (setId?: string) => {
@@ -589,13 +635,35 @@ const App: React.FC = () => {
   const nextSong = () => {
     if (!gameState || !activeSet) return; 
     pushToHistory(); // Save state before change
-    const isLast = gameState.currentSongIndex >= activeSet.songs.length - 1;
+    
+    // Mark current index as played
+    const updatedPlayedIndices = [...gameState.playedIndices, gameState.currentSongIndex];
+    
+    // Determine next index: Find the first index in shuffledIndices that hasn't been played
+    // If we were going linearly, it's just ++. But if host jumped around, we need to scan.
+    let nextIndex = -1;
+    
+    // Simple strategy: Iterate through 0..total. If index not in updatedPlayedIndices, that's our next.
+    // However, the shuffling is already in gameState.shuffledIndices. 
+    // gameState.currentSongIndex refers to the INDEX inside shuffledIndices [0, 1, 2...]
+    // Let's stick to linear progression for default "Next", skipping already played ones.
+    
+    for (let i = 0; i < activeSet.songs.length; i++) {
+        // We look for a slot in the shuffled array that hasn't been marked as played
+        if (!updatedPlayedIndices.includes(i)) {
+            nextIndex = i;
+            break;
+        }
+    }
+    
+    const isFinished = nextIndex === -1;
+
     stopAudio(); // Ensure audio stops between tracks
     // Reset round state
     setCurrentSegment(null);
     setCurrentRoundPoints(0);
     
-    if (isLast) { 
+    if (isFinished) { 
         const result: GameResult = { 
             id: crypto.randomUUID(), 
             dateTime: Date.now(), 
@@ -608,7 +676,34 @@ const App: React.FC = () => {
         setView('history'); 
         setGameState(null); 
     } 
-    else { setGameState({ ...gameState, currentSongIndex: gameState.currentSongIndex + 1, currentTurnTeamIndex: (gameState.currentTurnTeamIndex + 1) % gameState.teams.length, isRevealed: false, stealAttempted: false }); setStealMode(false); setScoredThisSong(false); }
+    else { 
+        setGameState({ 
+            ...gameState, 
+            playedIndices: updatedPlayedIndices,
+            currentSongIndex: nextIndex, 
+            currentTurnTeamIndex: (gameState.currentTurnTeamIndex + 1) % gameState.teams.length, 
+            isRevealed: false, 
+            stealAttempted: false 
+        }); 
+        setStealMode(false); 
+        setScoredThisSong(false); 
+    }
+  };
+
+  const jumpToSong = (index: number) => {
+      if (!gameState) return;
+      pushToHistory();
+      stopAudio();
+      setCurrentSegment(null);
+      setCurrentRoundPoints(0);
+      setGameState({
+          ...gameState,
+          currentSongIndex: index,
+          isRevealed: false,
+          stealAttempted: false
+      });
+      setStealMode(false);
+      setScoredThisSong(false);
   };
 
   const triggerStealMode = () => {
@@ -704,15 +799,38 @@ const App: React.FC = () => {
                        {sets.length === 0 ? (
                           <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 opacity-60"><Gamepad2 size={64} strokeWidth={1} /><p className="font-brand text-lg uppercase tracking-widest">No Games Found</p></div>
                        ) : (
-                          sets.map(s => (
-                            <div key={s.id} className="group p-5 bg-white/50 dark:bg-slate-800/50 hover:bg-white/80 dark:hover:bg-slate-800/80 border border-transparent hover:border-indigo-500/30 rounded-[2rem] transition-all duration-300 flex flex-col gap-4">
+                          sets.map(s => {
+                            // Check if this set has an active game session
+                            const isActiveGameSet = gameState && gameState.setId === s.id;
+                            
+                            return (
+                            <div key={s.id} className={`group p-5 bg-white/50 dark:bg-slate-800/50 hover:bg-white/80 dark:hover:bg-slate-800/80 border ${isActiveGameSet ? 'border-indigo-500/50 shadow-lg ring-1 ring-indigo-500/20' : 'border-transparent hover:border-indigo-500/30'} rounded-[2rem] transition-all duration-300 flex flex-col gap-4`}>
                                <div className="flex justify-between items-start">
-                                  <div><h4 className="font-bold text-lg text-slate-800 dark:text-white leading-tight mb-1">{s.name || 'Untitled Game'}</h4><p className="text-[10px] font-mono text-slate-500 uppercase tracking-wider">{s.songs.length} Tracks • {new Date(s.createdAt).toLocaleDateString()}</p></div>
+                                  <div>
+                                      <h4 className="font-bold text-lg text-slate-800 dark:text-white leading-tight mb-1">
+                                          {s.name || 'Untitled Game'} 
+                                          {isActiveGameSet && <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-indigo-500 text-white tracking-widest animate-pulse">Live</span>}
+                                      </h4>
+                                      <p className="text-[10px] font-mono text-slate-500 uppercase tracking-wider">{s.songs.length} Tracks • {new Date(s.createdAt).toLocaleDateString()}</p>
+                                  </div>
                                   <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => exportSet(s)} className="p-2 bg-slate-200 dark:bg-white/10 rounded-full hover:text-fuchsia-500"><Share2 size={14}/></button><button onClick={() => { setSetDraft(s); setView('setBuilder'); }} className="p-2 bg-slate-200 dark:bg-white/10 rounded-full hover:text-indigo-500"><Edit3 size={14}/></button></div>
                                </div>
-                               <button onClick={() => startGame(s, 2)} className="w-full py-4 bg-slate-900 dark:bg-indigo-600 text-white rounded-2xl font-brand uppercase text-sm tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-lg flex items-center justify-center gap-2"><PlayCircle size={18} /> Start Game</button>
+                               
+                               {isActiveGameSet ? (
+                                   <div className="flex gap-2">
+                                       <button onClick={() => resumeGame(gameState)} className="flex-grow py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-brand uppercase text-sm tracking-widest transition-all shadow-lg flex items-center justify-center gap-2 relative overflow-hidden">
+                                           <div className="absolute inset-0 bg-white/10 animate-pulse-slow"></div>
+                                           <PlayCircle size={18} /> Continue
+                                       </button>
+                                       <button onClick={() => { if(confirm("Discard current game and start over?")) startGame(s, 2); }} className="px-4 py-4 bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-slate-300 hover:bg-rose-100 dark:hover:bg-rose-900/20 hover:text-rose-600 rounded-2xl font-bold transition-all" title="Restart Game">
+                                           <RefreshCw size={18} />
+                                       </button>
+                                   </div>
+                               ) : (
+                                   <button onClick={() => startGame(s, 2)} className="w-full py-4 bg-slate-900 dark:bg-indigo-600 text-white rounded-2xl font-brand uppercase text-sm tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-lg flex items-center justify-center gap-2"><PlayCircle size={18} /> Start Game</button>
+                               )}
                             </div>
-                          ))
+                          )})
                        )}
                     </div>
                  </div>
@@ -725,9 +843,9 @@ const App: React.FC = () => {
         {view === 'game' && gameState && activeSet && (
           <div className="absolute inset-0 z-50 flex flex-col items-center justify-center overflow-hidden">
              {/* ... Game View Content ... */}
-             <button onClick={() => { if(confirm("End game?")) { setGameState(null); setView('home'); }}} className="absolute top-6 left-6 z-50 p-4 bg-black/20 hover:bg-rose-600/80 backdrop-blur-md rounded-full text-white/50 hover:text-white transition-all group">
-               <X size={24} />
-               <span className="absolute left-full ml-3 top-1/2 -translate-y-1/2 bg-black/80 text-white text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">QUIT</span>
+             <button onClick={() => { if(confirm("End game? The state will be saved if you want to resume later.")) { setView('home'); }}} className="absolute top-6 left-6 z-50 p-4 bg-black/20 hover:bg-rose-600/80 backdrop-blur-md rounded-full text-white/50 hover:text-white transition-all group">
+               <ArrowLeft size={24} />
+               <span className="absolute left-full ml-3 top-1/2 -translate-y-1/2 bg-black/80 text-white text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">HOME</span>
             </button>
             
             {/* Host Mode Toggle */}
@@ -750,24 +868,69 @@ const App: React.FC = () => {
             )}
 
             <div className="absolute top-12 z-[40] scale-110"><Scoreboard teams={gameState.teams} currentTurnIndex={gameState.currentTurnTeamIndex} /></div>
-            <div className="absolute top-24 bottom-32 right-6 w-64 z-[35] flex flex-col gap-2">
-               <div className="bg-black/40 backdrop-blur-md rounded-2xl p-4 border border-white/5 flex items-center gap-2">
-                  <ListMusic size={16} className="text-indigo-400" /><span className="text-xs font-bold uppercase tracking-widest text-white/80">Playlist</span><span className="ml-auto text-[10px] bg-white/10 px-2 py-0.5 rounded-full text-white/60">{gameState.currentSongIndex + 1}/{activeSet.songs.length}</span>
+            
+            {/* Playlist Sidebar */}
+            <div className="absolute top-24 bottom-32 right-6 w-72 z-[35] flex flex-col gap-2 transition-all">
+               <div className={`backdrop-blur-md rounded-2xl p-4 border flex items-center gap-2 ${isHostMode ? 'bg-indigo-900/80 border-indigo-500/50 shadow-lg' : 'bg-black/40 border-white/5'}`}>
+                  <ListMusic size={16} className={isHostMode ? "text-white" : "text-indigo-400"} />
+                  <span className="text-xs font-bold uppercase tracking-widest text-white/80">Playlist {isHostMode && "(Editable)"}</span>
+                  <span className="ml-auto text-[10px] bg-white/10 px-2 py-0.5 rounded-full text-white/60">{gameState.playedIndices.length + (gameState.isFinished ? 0 : 1)}/{activeSet.songs.length}</span>
                </div>
-               <div className="flex-grow overflow-y-auto no-scrollbar space-y-2 pb-4">
+               
+               <div className="flex-grow overflow-y-auto no-scrollbar space-y-2 pb-4 pr-1">
                   {activeSet.songs.map((_, idx) => {
                      const isCurrent = idx === gameState.currentSongIndex;
-                     const isPast = idx < gameState.currentSongIndex;
+                     const isPlayed = gameState.playedIndices.includes(idx);
                      const songData = songs.find(s => s.id === activeSet.songs[gameState.shuffledIndices[idx]].songId);
+                     
+                     // In host mode, we show title. In public mode, only if played or current (if revealed).
+                     // Actually public mode usually hides everything until end? The requirement is "song details not viewable". 
+                     // Existing logic: Locked unless current/past. 
+                     
                      return (
-                        <div key={idx} className={`p-3 rounded-xl border flex items-center gap-3 transition-all ${isCurrent ? 'bg-indigo-600/80 border-indigo-400/50 shadow-lg scale-105 ml-[-10px]' : isPast ? 'bg-black/20 border-white/5 text-slate-400' : 'bg-transparent border-transparent opacity-50'}`}>
-                           <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${isCurrent ? 'bg-white text-indigo-600' : 'bg-white/10 text-white'}`}>{idx + 1}</div>
-                           <div className="truncate">{isCurrent ? <div className="text-xs font-bold text-white uppercase tracking-wider animate-pulse">Playing Now...</div> : isPast ? <div className="text-xs font-bold text-white/90 truncate">{songData?.title || 'Unknown Track'}</div> : <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Locked</div>}</div>
+                        <div 
+                            key={idx} 
+                            onClick={() => {
+                                if (isHostMode && !isPlayed && !isCurrent) {
+                                    jumpToSong(idx);
+                                }
+                            }}
+                            className={`
+                                p-3 rounded-xl border flex items-center gap-3 transition-all relative overflow-hidden
+                                ${isCurrent 
+                                    ? 'bg-indigo-600/90 border-indigo-400/50 shadow-lg scale-105 ml-[-10px] z-10' 
+                                    : isPlayed
+                                        ? 'bg-black/40 border-white/5 opacity-60 grayscale'
+                                        : isHostMode 
+                                            ? 'bg-slate-800/80 border-white/10 hover:bg-indigo-900/50 hover:border-indigo-500/30 cursor-pointer'
+                                            : 'bg-transparent border-transparent opacity-30'
+                                }
+                            `}
+                        >
+                           <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${isCurrent ? 'bg-white text-indigo-600' : isPlayed ? 'bg-emerald-500/20 text-emerald-500' : 'bg-white/10 text-white'}`}>
+                               {isPlayed ? <CheckCircle size={12}/> : idx + 1}
+                           </div>
+                           
+                           <div className="truncate min-w-0 flex-grow">
+                               {isCurrent ? (
+                                   <div className="text-xs font-bold text-white uppercase tracking-wider animate-pulse">Playing Now...</div>
+                               ) : isHostMode ? (
+                                   <div className="flex flex-col">
+                                       <div className={`text-xs font-bold truncate ${isPlayed ? 'text-slate-400 line-through' : 'text-white'}`}>{songData?.title || 'Unknown Track'}</div>
+                                       {!isPlayed && <div className="text-[8px] uppercase tracking-widest text-indigo-300/60">Click to Play</div>}
+                                   </div>
+                               ) : isPlayed ? (
+                                   <div className="text-xs font-bold text-white/50 truncate">{songData?.title || 'Unknown Track'}</div> 
+                               ) : (
+                                   <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest"><Lock size={10} /> Locked</div>
+                               )}
+                           </div>
                         </div>
                      )
                   })}
                </div>
             </div>
+
             <div className="relative z-10 flex items-center justify-center scale-125 md:scale-150 transition-transform duration-1000">
                <div className={`absolute inset-0 bg-indigo-500/20 blur-[100px] rounded-full transition-opacity duration-500 ${isPlaying ? 'opacity-100' : 'opacity-0'}`}></div>
                <div className={`w-[350px] h-[350px] rounded-full bg-[#0a0a0a] border-4 border-[#1a1a1a] shadow-2xl flex items-center justify-center vinyl-grooves relative ${isPlaying ? 'animate-spin-slow' : ''}`}>
